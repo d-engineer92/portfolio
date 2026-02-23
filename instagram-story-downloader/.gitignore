@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Session (contains Instagram credentials!)
+.sessions/
+
+# OS
+.DS_Store
+Thumbs.db

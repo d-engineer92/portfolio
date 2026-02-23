@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InstaStory Downloader — ストーリーを簡単ダウンロード</title>
+    <meta name="description" content="Instagramのストーリーをユーザー名だけで簡単にダウンロード。アプリ不要、ログイン不要。">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Background animated gradient -->
+    <div class="bg-gradient"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+                        <circle cx="12" cy="12" r="5"/>
+                        <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/>
+                    </svg>
+                </div>
+                <h1>InstaStory <span class="gradient-text">Downloader</span></h1>
+            </div>
+            <p class="subtitle">ユーザー名を入力するだけ。ストーリーを簡単ダウンロード。</p>
+        </header>
+
+        <!-- Search Form -->
+        <div class="search-section">
+            <form id="search-form" class="search-form">
+                <div class="search-input-wrapper">
+                    <span class="at-symbol">@</span>
+                    <input
+                        type="text"
+                        id="username-input"
+                        placeholder="ユーザー名を入力..."
+                        autocomplete="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        maxlength="30"
+                        pattern="[a-zA-Z0-9._]{1,30}"
+                        required
+                    >
+                    <button type="submit" id="search-btn" class="search-btn">
+                        <span class="btn-text">ストーリーを取得</span>
+                        <span class="btn-loading" hidden>
+                            <span class="spinner"></span>
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Session Warning -->
+        <div id="session-warning" class="alert alert-warning" hidden>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>Instagram セッションが未設定です。<code>python setup_session.py</code> を実行してください。</span>
+        </div>
+
+        <!-- Error Alert -->
+        <div id="error-alert" class="alert alert-error" hidden>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            <span id="error-message"></span>
+        </div>
+
+        <!-- User Profile Card -->
+        <div id="user-profile" class="profile-card" hidden>
+            <img id="profile-pic" class="profile-pic" src="" alt="">
+            <div class="profile-info">
+                <h2 id="profile-name" class="profile-name"></h2>
+                <p id="profile-username" class="profile-username"></p>
+                <p id="profile-followers" class="profile-followers"></p>
+            </div>
+            <div id="story-count-badge" class="story-count-badge">
+                <span id="story-count">0</span> ストーリー
+            </div>
+        </div>
+
+        <!-- Download All Button -->
+        <div id="download-all-section" class="download-all-section" hidden>
+            <button id="download-all-btn" class="download-all-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                すべてダウンロード
+            </button>
+        </div>
+
+        <!-- Stories Grid -->
+        <div id="stories-grid" class="stories-grid"></div>
+
+        <!-- Skeleton Loading -->
+        <div id="skeleton-loading" class="stories-grid" hidden>
+            <div class="story-card skeleton"><div class="skeleton-media"></div><div class="skeleton-bar"></div></div>
+            <div class="story-card skeleton"><div class="skeleton-media"></div><div class="skeleton-bar"></div></div>
+            <div class="story-card skeleton"><div class="skeleton-media"></div><div class="skeleton-bar"></div></div>
+            <div class="story-card skeleton"><div class="skeleton-media"></div><div class="skeleton-bar"></div></div>
+            <div class="story-card skeleton"><div class="skeleton-media"></div><div class="skeleton-bar"></div></div>
+            <div class="story-card skeleton"><div class="skeleton-media"></div><div class="skeleton-bar"></div></div>
+        </div>
+
+        <!-- No Stories Message -->
+        <div id="no-stories" class="no-stories" hidden>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 15s1.5 2 4 2 4-2 4-2"/>
+                <line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+            </svg>
+            <p>現在ストーリーはありません</p>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>⚠️ このツールはポートフォリオ目的で作成されています。公開アカウントのストーリーのみ取得可能です。</p>
+        </footer>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>

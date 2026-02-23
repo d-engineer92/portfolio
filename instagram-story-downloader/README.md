@@ -2,72 +2,66 @@
 
 Instagramのストーリーをユーザー名だけで取得・ダウンロードできるWebアプリ。
 
-![Screenshot](screenshot.png)
-
 ## 技術スタック
 
 | レイヤー | 技術 |
 |---|---|
 | Frontend | HTML / CSS / JavaScript |
 | Backend | Python / FastAPI |
-| Instagram連携 | instaloader |
+| Instagram API | instaloader (セッション管理) + Direct Web API (ストーリー取得) |
 
 ## セットアップ
 
-### 1. Backend
+### 1. バックエンド
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Instagramセッション作成（初回のみ）
+### 2. Instagramセッション
 
 ```bash
-cd backend
-python setup_session.py
+# Step 1: ログイン
+python setup_session.py --login
+
+# Step 2: ブラウザからsessionidをインポート（必須）
+# instagram.com → F12 → Application → Cookies → sessionid をコピー
+python setup_session.py --browser-cookie
 ```
 
-Instagram のユーザー名・パスワードを入力してセッションを保存します。
-2FA が有効な場合は、認証コードの入力も求められます。
+> **Note**: instaloader のログインだけでは `sessionid` が空になる場合があります。
+> ストーリー取得にはブラウザからの `sessionid` インポートが必要です。
 
 ### 3. 起動
 
-**Backend:**
 ```bash
+# バックエンド
 cd backend
-uvicorn main:app --reload --port 8000
-```
+uvicorn main:app --port 8000
 
-**Frontend:**
-```bash
+# フロントエンド（別ターミナル）
 cd frontend
-# 任意のHTTPサーバーで配信
 python -m http.server 5500
 ```
 
-ブラウザで `http://localhost:5500` にアクセス。
-
-## 使い方
-
-1. ユーザー名を入力
-2. 「ストーリーを取得」をクリック
-3. ストーリーが表示されたら、個別 or 一括でダウンロード
-
-## 注意事項
-
-- 公開アカウントのストーリーのみ取得可能
-- Instagram の非公式APIを使用しています
-- ポートフォリオ・学習目的で作成
-- セッションが期限切れの場合は `setup_session.py` を再実行してください
+ブラウザで http://localhost:5500 にアクセス。
 
 ## API
 
 | Method | Endpoint | 説明 |
 |---|---|---|
+| GET | `/api/session/status` | セッション状態 |
 | GET | `/api/stories/{username}` | ストーリー取得 |
 | GET | `/api/proxy/media?url=...` | メディアプロキシ |
-| GET | `/api/session/status` | セッション状態確認 |
-| GET | `/api/health` | ヘルスチェック |
+
+## 技術的な知見
+
+### Instagram API の制限
+
+- **VPS/クラウドIP**: `web_profile_info` API は VPS IP からは即座に 429 を返す（リクエスト量に関係なく）
+- **GraphQL**: instaloader v4.15 時点で `get_stories()` の query hash が Instagram 側で無効化されている
+- **解決策**: `www.instagram.com/api/v1/feed/reels_media/` に `X-IG-App-ID` ヘッダーを付けることでストーリー取得が可能
+- **sessionid**: ブラウザから取得した有効な `sessionid` cookie が必要

@@ -71,6 +71,8 @@ async def get_stories(username: str):
         stories = service.get_stories(username)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"予期しないエラー: {exc}")
 
     return {
         "user": user_info,

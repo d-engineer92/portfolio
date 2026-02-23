@@ -65,13 +65,13 @@ class StoryService:
             return True
 
         if not SESSION_DIR.exists():
-            logger.warning("session_dir_missing", path=str(SESSION_DIR))
+            logger.warning("Session dir missing: %s", SESSION_DIR)
             return False
 
         # Find session files
         session_files = sorted(SESSION_DIR.glob("session-*"), key=lambda p: p.stat().st_mtime, reverse=True)
         if not session_files:
-            logger.warning("no_session_files")
+            logger.warning("No session files found")
             return False
 
         session_file = session_files[0]
@@ -81,10 +81,10 @@ class StoryService:
             self._loader.load_session_from_file(username, str(session_file))
             self._session_username = username
             self._loaded = True
-            logger.info("session_loaded", username=username)
+            logger.info("Session loaded for user: %s", username)
             return True
         except Exception as exc:
-            logger.error("session_load_failed", error=str(exc))
+            logger.error("Session load failed: %s", exc)
             return False
 
     @property
@@ -154,6 +154,10 @@ class StoryService:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(_fetch_stories)
                 future.result(timeout=_API_TIMEOUT)
+        except KeyError as exc:
+            # GraphQL response missing expected keys (e.g. 'data')
+            logger.warning("Story fetch returned unexpected response: %s", exc)
+            pass  # Return whatever stories we collected so far
         except concurrent.futures.TimeoutError:
             raise ValueError(
                 "Instagramからの応答がタイムアウトしました。"
@@ -171,7 +175,7 @@ class StoryService:
                 raise ValueError(
                     "Instagramのレートリミットに達しました。数分後に再試行してください。"
                 )
-            logger.error("story_fetch_error", username=target_username, error=err_str)
+            logger.error("Story fetch error for %s: %s", target_username, err_str)
             raise ValueError(f"ストーリーの取得に失敗しました: {exc}")
 
         return stories

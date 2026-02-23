@@ -139,7 +139,7 @@ class InstagramService:
     # ------------------------------------------------------------------
 
     def _resolve_user(self, username: str) -> dict[str, Any]:
-        """Get user info + ID via reels_media or instaloader fallback."""
+        """Get user info + ID via instaloader or search API fallback."""
         if not self._loaded:
             raise ValueError("No Instagram session loaded. Run setup_session.py first.")
 
@@ -156,8 +156,10 @@ class InstagramService:
                 "is_private": profile.is_private,
                 "followers": profile.followers,
             }
-        except Exception:
-            pass
+        except instaloader.exceptions.ProfileNotExistsException:
+            raise ValueError(f"ユーザー '{username}' が見つかりません。")
+        except Exception as exc:
+            logger.warning("Profile lookup via instaloader failed: %s", exc)
 
         # Fallback: search for user (works on VPS)
         try:
@@ -174,8 +176,9 @@ class InstagramService:
                         "is_private": user.get("is_private", False),
                         "followers": user.get("follower_count", 0),
                     }
-        except Exception:
-            pass
+            logger.warning("Search API returned no match for '%s'", username)
+        except Exception as exc:
+            logger.warning("Search API fallback failed: %s", exc)
 
         raise ValueError(f"ユーザー '{username}' が見つかりません。")
 

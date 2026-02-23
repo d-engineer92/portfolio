@@ -2,7 +2,7 @@
  * InstaGrab Downloader — Frontend Logic
  */
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "";  // Same origin — served by FastAPI
 
 // DOM Elements
 const searchForm = document.getElementById("search-form");

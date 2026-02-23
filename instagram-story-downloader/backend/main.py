@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import re
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from story_service import get_story_service
+
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
 # ---------------------------------------------------------------------------
 # Lifespan — initialize session on startup
@@ -146,3 +150,11 @@ async def proxy_media(url: str = Query(..., description="Instagram media URL to 
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Static files (frontend) — must be AFTER API routes
+# ---------------------------------------------------------------------------
+
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

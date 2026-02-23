@@ -81,6 +81,32 @@ async def get_stories(username: str):
     }
 
 
+@app.get("/api/posts/{username}")
+async def get_posts(username: str, count: int = 12):
+    """Fetch Instagram posts for a given username."""
+    if not _USERNAME_RE.match(username):
+        raise HTTPException(status_code=400, detail="Invalid username format.")
+
+    service = get_story_service()
+
+    if not service.session_status["logged_in"]:
+        raise HTTPException(status_code=503, detail="No Instagram session. Run setup_session.py.")
+
+    try:
+        user_info = service.get_user_info(username)
+        posts = service.get_posts(username, count=min(count, 30))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"予期しないエラー: {exc}")
+
+    return {
+        "user": user_info,
+        "posts": posts,
+        "count": len(posts),
+    }
+
+
 @app.get("/api/proxy/media")
 async def proxy_media(url: str = Query(..., description="Instagram media URL to proxy")):
     """Proxy Instagram media to avoid CORS issues in the browser.

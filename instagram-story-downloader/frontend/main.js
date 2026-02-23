@@ -1,5 +1,5 @@
 /**
- * Instagram Story Downloader — Frontend Logic
+ * InstaGrab Downloader — Frontend Logic
  */
 
 const API_BASE = "http://localhost:8000";
@@ -18,16 +18,24 @@ const profilePic = document.getElementById("profile-pic");
 const profileName = document.getElementById("profile-name");
 const profileUsername = document.getElementById("profile-username");
 const profileFollowers = document.getElementById("profile-followers");
-const storyCountEl = document.getElementById("story-count");
+const contentTabs = document.getElementById("content-tabs");
+const tabStories = document.getElementById("tab-stories");
+const tabPosts = document.getElementById("tab-posts");
 const storyCountBadge = document.getElementById("story-count-badge");
+const postCountBadge = document.getElementById("post-count-badge");
 const downloadAllSection = document.getElementById("download-all-section");
 const downloadAllBtn = document.getElementById("download-all-btn");
 const storiesGrid = document.getElementById("stories-grid");
+const postsGrid = document.getElementById("posts-grid");
 const skeletonLoading = document.getElementById("skeleton-loading");
-const noStories = document.getElementById("no-stories");
+const noContent = document.getElementById("no-content");
+const noContentText = document.getElementById("no-content-text");
 
 // State
 let currentStories = [];
+let currentPosts = [];
+let activeTab = "stories";
+let currentUsername = "";
 
 // ---------------------------------------------------------------------------
 // Init
@@ -41,12 +49,39 @@ async function init() {
             sessionWarning.hidden = false;
         }
     } catch {
-        // Backend not running — show warning
         sessionWarning.hidden = false;
     }
 }
 
 init();
+
+// ---------------------------------------------------------------------------
+// Tab Switching
+// ---------------------------------------------------------------------------
+
+tabStories.addEventListener("click", () => switchTab("stories"));
+tabPosts.addEventListener("click", () => switchTab("posts"));
+
+function switchTab(tab) {
+    activeTab = tab;
+    tabStories.classList.toggle("active", tab === "stories");
+    tabPosts.classList.toggle("active", tab === "posts");
+    storiesGrid.hidden = tab !== "stories";
+    postsGrid.hidden = tab !== "posts";
+    noContent.hidden = true;
+
+    // Update download all visibility
+    const items = tab === "stories" ? currentStories : currentPosts;
+    downloadAllSection.hidden = items.length === 0;
+
+    // Show "no content" if empty
+    if (items.length === 0 && currentUsername) {
+        noContentText.textContent = tab === "stories"
+            ? "現在ストーリーはありません"
+            : "投稿が見つかりません";
+        noContent.hidden = false;
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Search
@@ -57,38 +92,58 @@ searchForm.addEventListener("submit", async (e) => {
     const username = usernameInput.value.trim().replace(/^@/, "");
     if (!username) return;
 
+    currentUsername = username;
+
     // Reset UI
     hideError();
     userProfile.hidden = true;
+    contentTabs.hidden = true;
     downloadAllSection.hidden = true;
     storiesGrid.innerHTML = "";
-    noStories.hidden = true;
+    postsGrid.innerHTML = "";
+    noContent.hidden = true;
     currentStories = [];
+    currentPosts = [];
 
     // Show loading
     setLoading(true);
 
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-        const resp = await fetch(
-            `${API_BASE}/api/stories/${encodeURIComponent(username)}`,
-            { signal: controller.signal }
-        );
+        // Fetch stories and posts in parallel
+        const [storiesResp, postsResp] = await Promise.all([
+            fetch(`${API_BASE}/api/stories/${encodeURIComponent(username)}`, { signal: controller.signal }),
+            fetch(`${API_BASE}/api/posts/${encodeURIComponent(username)}`, { signal: controller.signal }),
+        ]);
         clearTimeout(timeoutId);
 
-        if (!resp.ok) {
-            const err = await resp.json().catch(() => ({ detail: "エラーが発生しました" }));
-            throw new Error(err.detail || `HTTP ${resp.status}`);
+        // Handle stories
+        if (storiesResp.ok) {
+            const storiesData = await storiesResp.json();
+            showProfile(storiesData.user);
+            showStories(storiesData.stories);
+        } else {
+            const err = await storiesResp.json().catch(() => ({ detail: "エラー" }));
+            // If it's a user not found error, throw
+            if (storiesResp.status === 404) throw new Error(err.detail);
         }
 
-        const data = await resp.json();
-        showProfile(data.user);
-        showStories(data.stories);
+        // Handle posts
+        if (postsResp.ok) {
+            const postsData = await postsResp.json();
+            if (!userProfile.hidden === false) showProfile(postsData.user);
+            showPosts(postsData.posts);
+        }
+
+        // Show tabs
+        contentTabs.hidden = false;
+        switchTab("stories");
+
     } catch (err) {
         if (err.name === "AbortError") {
-            showError("リクエストがタイムアウトしました。Instagramのレートリミットの可能性があります。数分後に再試行してください。");
+            showError("リクエストがタイムアウトしました。数分後に再試行してください。");
         } else {
             showError(err.message);
         }
@@ -102,6 +157,7 @@ searchForm.addEventListener("submit", async (e) => {
 // ---------------------------------------------------------------------------
 
 function showProfile(user) {
+    if (!user) return;
     profilePic.src = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(user.profile_pic_url)}`;
     profilePic.alt = user.username;
     profileName.textContent = user.full_name || user.username;
@@ -116,15 +172,7 @@ function showProfile(user) {
 
 function showStories(stories) {
     currentStories = stories;
-    storyCountEl.textContent = stories.length;
-
-    if (stories.length === 0) {
-        noStories.hidden = false;
-        downloadAllSection.hidden = true;
-        return;
-    }
-
-    downloadAllSection.hidden = false;
+    storyCountBadge.textContent = stories.length;
 
     stories.forEach((story, index) => {
         const card = createStoryCard(story, index);
@@ -140,7 +188,6 @@ function createStoryCard(story, index) {
     const mediaWrapper = document.createElement("div");
     mediaWrapper.className = "story-media-wrapper";
 
-    // Media element
     if (story.media_type === "video") {
         const video = document.createElement("video");
         video.src = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(story.url)}`;
@@ -151,14 +198,8 @@ function createStoryCard(story, index) {
         video.loop = true;
         video.playsInline = true;
         video.preload = "metadata";
-
-        // Play on hover
         card.addEventListener("mouseenter", () => video.play().catch(() => { }));
-        card.addEventListener("mouseleave", () => {
-            video.pause();
-            video.currentTime = 0;
-        });
-
+        card.addEventListener("mouseleave", () => { video.pause(); video.currentTime = 0; });
         mediaWrapper.appendChild(video);
     } else {
         const img = document.createElement("img");
@@ -168,13 +209,11 @@ function createStoryCard(story, index) {
         mediaWrapper.appendChild(img);
     }
 
-    // Type badge
     const badge = document.createElement("span");
     badge.className = "media-type-badge";
     badge.textContent = story.media_type === "video" ? "🎬 動画" : "📷 画像";
     mediaWrapper.appendChild(badge);
 
-    // Footer
     const footer = document.createElement("div");
     footer.className = "story-card-footer";
 
@@ -182,22 +221,90 @@ function createStoryCard(story, index) {
     timestamp.className = "story-timestamp";
     timestamp.textContent = formatTimestamp(story.timestamp);
 
-    const dlBtn = document.createElement("button");
-    dlBtn.className = "download-btn";
-    dlBtn.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-      <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-    </svg>
-    保存
-  `;
+    const dlBtn = createDownloadButton();
     dlBtn.addEventListener("click", () => downloadMedia(story));
 
     footer.appendChild(timestamp);
     footer.appendChild(dlBtn);
-
     card.appendChild(mediaWrapper);
     card.appendChild(footer);
+
+    return card;
+}
+
+// ---------------------------------------------------------------------------
+// Posts Display
+// ---------------------------------------------------------------------------
+
+function showPosts(posts) {
+    currentPosts = posts;
+    postCountBadge.textContent = posts.length;
+
+    posts.forEach((post, index) => {
+        const card = createPostCard(post, index);
+        postsGrid.appendChild(card);
+    });
+}
+
+function createPostCard(post, index) {
+    const card = document.createElement("div");
+    card.className = "post-card";
+    card.style.animationDelay = `${index * 0.05}s`;
+
+    // Thumbnail
+    const thumbUrl = post.thumbnail_url || post.url;
+    if (post.media_type === "video" && post.thumbnail_url) {
+        const img = document.createElement("img");
+        img.src = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(post.thumbnail_url)}`;
+        img.alt = "Post";
+        img.loading = "lazy";
+        card.appendChild(img);
+    } else {
+        const img = document.createElement("img");
+        img.src = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(post.url)}`;
+        img.alt = "Post";
+        img.loading = "lazy";
+        card.appendChild(img);
+    }
+
+    // Video badge
+    if (post.media_type === "video") {
+        const videoBadge = document.createElement("div");
+        videoBadge.className = "post-video-badge";
+        videoBadge.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
+        card.appendChild(videoBadge);
+    }
+
+    // Carousel badge
+    if (post.carousel_total) {
+        const carouselBadge = document.createElement("div");
+        carouselBadge.className = "post-carousel-badge";
+        carouselBadge.textContent = `${(post.carousel_index || 0) + 1}/${post.carousel_total}`;
+        card.appendChild(carouselBadge);
+    }
+
+    // Hover overlay
+    const overlay = document.createElement("div");
+    overlay.className = "post-overlay";
+
+    const stats = document.createElement("div");
+    stats.className = "post-overlay-stats";
+    stats.innerHTML = `<span>♥ ${formatNumber(post.like_count || 0)}</span>`;
+    overlay.appendChild(stats);
+
+    const dlBtn = createDownloadButton();
+    dlBtn.addEventListener("click", (e) => { e.stopPropagation(); downloadMedia(post); });
+    overlay.appendChild(dlBtn);
+
+    card.appendChild(overlay);
+
+    // Caption
+    if (post.caption) {
+        const caption = document.createElement("div");
+        caption.className = "post-caption";
+        caption.textContent = post.caption;
+        card.appendChild(caption);
+    }
 
     return card;
 }
@@ -206,16 +313,28 @@ function createStoryCard(story, index) {
 // Download
 // ---------------------------------------------------------------------------
 
-async function downloadMedia(story) {
-    const ext = story.media_type === "video" ? "mp4" : "jpg";
-    const filename = `story_${story.username}_${story.id}.${ext}`;
-    const proxyUrl = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(story.url)}`;
+function createDownloadButton() {
+    const btn = document.createElement("button");
+    btn.className = "download-btn";
+    btn.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+    保存
+  `;
+    return btn;
+}
+
+async function downloadMedia(item) {
+    const ext = item.media_type === "video" ? "mp4" : "jpg";
+    const filename = `${item.username}_${item.id}.${ext}`;
+    const proxyUrl = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(item.url)}`;
 
     try {
         const resp = await fetch(proxyUrl);
         const blob = await resp.blob();
         const url = URL.createObjectURL(blob);
-
         const a = document.createElement("a");
         a.href = url;
         a.download = filename;
@@ -229,9 +348,9 @@ async function downloadMedia(story) {
 }
 
 downloadAllBtn.addEventListener("click", async () => {
-    for (const story of currentStories) {
-        await downloadMedia(story);
-        // Small delay between downloads
+    const items = activeTab === "stories" ? currentStories : currentPosts;
+    for (const item of items) {
+        await downloadMedia(item);
         await new Promise((r) => setTimeout(r, 500));
     }
 });

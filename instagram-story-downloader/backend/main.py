@@ -71,22 +71,27 @@ async def get_stories(username: str):
         raise HTTPException(status_code=503, detail="No Instagram session. Run setup_session.py.")
 
     try:
-        user_info = service.get_user_info(username)
-        stories = service.get_stories(username)
+        user_info, stories = service.get_stories(username)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"予期しないエラー: {exc}")
 
     return {
-        "user": user_info,
+        "user": {
+            "username": user_info["username"],
+            "full_name": user_info["full_name"],
+            "profile_pic_url": user_info["profile_pic_url"],
+            "is_private": user_info["is_private"],
+            "followers": user_info["followers"],
+        },
         "stories": stories,
         "count": len(stories),
     }
 
 
 @app.get("/api/posts/{username}")
-async def get_posts(username: str, count: int = 12):
+async def get_posts(username: str, count: int = 100):
     """Fetch Instagram posts for a given username."""
     if not _USERNAME_RE.match(username):
         raise HTTPException(status_code=400, detail="Invalid username format.")
@@ -97,15 +102,20 @@ async def get_posts(username: str, count: int = 12):
         raise HTTPException(status_code=503, detail="No Instagram session. Run setup_session.py.")
 
     try:
-        user_info = service.get_user_info(username)
-        posts = service.get_posts(username, count=min(count, 30))
+        user_info, posts = service.get_posts(username, max_posts=min(count, 200))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"予期しないエラー: {exc}")
 
     return {
-        "user": user_info,
+        "user": {
+            "username": user_info["username"],
+            "full_name": user_info["full_name"],
+            "profile_pic_url": user_info["profile_pic_url"],
+            "is_private": user_info["is_private"],
+            "followers": user_info["followers"],
+        },
         "posts": posts,
         "count": len(posts),
     }

@@ -220,23 +220,34 @@ class InstagramService:
 
         raise ValueError(f"ユーザー '{username}' が見つかりません。")
 
-    def get_user_info(self, username: str) -> dict[str, Any]:
-        """Get basic profile info for display."""
-        info = self._resolve_user(username)
-        return {
-            "username": info["username"],
-            "full_name": info["full_name"],
-            "profile_pic_url": info["profile_pic_url"],
-            "is_private": info["is_private"],
-            "followers": info["followers"],
-        }
+    def _enrich_user_info(self, user: dict[str, Any]) -> dict[str, Any]:
+        """Enrich user info with follower count from users/{id}/info/ API."""
+        if user.get("followers"):
+            return user  # Already have follower count
+
+        try:
+            data = self._api_get(f"users/{user['user_id']}/info/")
+            api_user = data.get("user", {})
+            user["followers"] = api_user.get("follower_count", 0)
+            user["media_count"] = api_user.get("media_count", 0)
+            if not user.get("full_name"):
+                user["full_name"] = api_user.get("full_name", "")
+            if not user.get("profile_pic_url"):
+                user["profile_pic_url"] = api_user.get("profile_pic_url", "")
+        except Exception as exc:
+            logger.warning("Failed to enrich user info: %s", exc)
+
+        return user
 
     # ------------------------------------------------------------------
     # Stories
     # ------------------------------------------------------------------
 
-    def get_stories(self, username: str) -> list[dict[str, Any]]:
-        """Fetch current stories for a given username."""
+    def get_stories(self, username: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """Fetch current stories for a given username.
+
+        Returns (enriched_user_info, stories_list).
+        """
         user = self._resolve_user(username)
 
         if user["is_private"]:
@@ -251,7 +262,16 @@ class InstagramService:
         reel = reels.get(str(user["user_id"]), {})
         items = reel.get("items", [])
 
-        return [self._parse_story_item(item, username) for item in items]
+        # Enrich user info from reels_media response
+        reel_user = reel.get("user", {})
+        if reel_user:
+            if not user.get("full_name"):
+                user["full_name"] = reel_user.get("full_name", user.get("full_name", ""))
+            if not user.get("profile_pic_url"):
+                user["profile_pic_url"] = reel_user.get("profile_pic_url", "")
+
+        user = self._enrich_user_info(user)
+        return user, [self._parse_story_item(item, username) for item in items]
 
     def _parse_story_item(self, item: dict, username: str) -> dict[str, Any]:
         has_video = bool(item.get("video_versions"))
@@ -280,20 +300,51 @@ class InstagramService:
     # Posts
     # ------------------------------------------------------------------
 
-    def get_posts(self, username: str, count: int = 12) -> list[dict[str, Any]]:
-        """Fetch recent posts for a given username."""
+    def get_posts(self, username: str, max_posts: int = 100) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """Fetch posts for a given username with pagination.
+
+        Returns (user_info, posts_list).
+        """
         user = self._resolve_user(username)
 
         if user["is_private"]:
             raise ValueError(f"'{username}' は非公開アカウントです。")
 
-        data = self._api_get(f"feed/user/{user['user_id']}/", count=str(count))
-        items = data.get("items", [])
+        user = self._enrich_user_info(user)
 
-        posts: list[dict[str, Any]] = []
-        for item in items:
-            posts.extend(self._parse_post_item(item, username))
-        return posts
+        all_posts: list[dict[str, Any]] = []
+        max_id = None
+        page_size = 12
+
+        while len(all_posts) < max_posts:
+            params: dict[str, str] = {"count": str(page_size)}
+            if max_id:
+                params["max_id"] = max_id
+
+            try:
+                data = self._api_get(f"feed/user/{user['user_id']}/", **params)
+            except Exception as exc:
+                logger.warning("Post pagination error: %s", exc)
+                break
+
+            items = data.get("items", [])
+            if not items:
+                break
+
+            for item in items:
+                all_posts.extend(self._parse_post_item(item, username))
+
+            if not data.get("more_available", False):
+                break
+
+            max_id = data.get("next_max_id")
+            if not max_id:
+                break
+
+            import time
+            time.sleep(0.5)  # Rate limit protection
+
+        return user, all_posts[:max_posts]
 
     def _parse_post_item(self, item: dict, username: str) -> list[dict[str, Any]]:
         """Parse a post item. Carousels are expanded into multiple items."""

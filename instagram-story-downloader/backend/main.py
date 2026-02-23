@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -12,12 +13,39 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from story_service import get_story_service
+# Load .env file if it exists
+_env_file = Path(__file__).parent / ".env"
+if _env_file.exists():
+    import os
+    for line in _env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip())
+
+from story_service import get_story_service, KEEPALIVE_INTERVAL
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
+
 # ---------------------------------------------------------------------------
-# Lifespan — initialize session on startup
+# Background keepalive task
+# ---------------------------------------------------------------------------
+
+async def _keepalive_loop():
+    """Periodically ping Instagram to keep the session alive."""
+    while True:
+        await asyncio.sleep(KEEPALIVE_INTERVAL)
+        try:
+            service = get_story_service()
+            service.keepalive()
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("Keepalive error: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# Lifespan — initialize session + start keepalive
 # ---------------------------------------------------------------------------
 
 @asynccontextmanager
@@ -26,8 +54,14 @@ async def lifespan(app: FastAPI):
     if not service.session_status["logged_in"]:
         print("⚠️  No Instagram session found. Run: python setup_session.py")
     else:
-        print(f"✅ Instagram session loaded: {service.session_status['username']}")
+        ss = service.session_status
+        print(f"✅ Instagram session loaded: {ss['username']} (sessionid: {'✅' if ss['has_sessionid'] else '❌'})")
+
+    # Start background keepalive
+    task = asyncio.create_task(_keepalive_loop())
+    print(f"🔄 Session keepalive started (interval: {KEEPALIVE_INTERVAL // 60}min)")
     yield
+    task.cancel()
 
 
 # ---------------------------------------------------------------------------

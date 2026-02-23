@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import pickle
+import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -20,6 +23,9 @@ _IG_APP_ID = "936619743392459"
 
 # Timeout for API calls
 _API_TIMEOUT = 15
+
+# Keepalive interval (seconds) — 30 minutes
+KEEPALIVE_INTERVAL = 30 * 60
 
 
 class InstagramService:
@@ -38,6 +44,8 @@ class InstagramService:
         )
         self._session_username: str | None = None
         self._loaded = False
+        self._needs_manual_refresh = False
+        self._last_keepalive: float = 0
 
     # ------------------------------------------------------------------
     # Session management
@@ -49,15 +57,19 @@ class InstagramService:
             return True
 
         if not SESSION_DIR.exists():
-            logger.warning("Session dir missing: %s", SESSION_DIR)
-            return False
+            SESSION_DIR.mkdir(parents=True, exist_ok=True)
+            logger.warning("Created session dir: %s", SESSION_DIR)
 
         session_files = sorted(
             SESSION_DIR.glob("session-*"),
             key=lambda p: p.stat().st_mtime,
             reverse=True,
         )
+
         if not session_files:
+            # Try auto-login if credentials are available
+            if self._try_login():
+                return True
             logger.warning("No session files found")
             return False
 
@@ -68,23 +80,92 @@ class InstagramService:
             self._loader.load_session_from_file(username, str(session_file))
             self._session_username = username
             self._loaded = True
-
-            # Add X-IG-App-ID header for API calls
             self._session.headers["X-IG-App-ID"] = _IG_APP_ID
 
             has_sessionid = any(
                 c.name == "sessionid" and c.value for c in self._session.cookies
             )
             if not has_sessionid:
-                logger.warning(
-                    "sessionid cookie is empty. "
-                    "Import it via: python setup_session.py --browser-cookie"
-                )
+                logger.warning("sessionid cookie empty — trying auto-login")
+                if not self._try_login():
+                    logger.warning(
+                        "Auto-login failed. Import sessionid via: "
+                        "python setup_session.py --browser-cookie"
+                    )
             logger.info("Session loaded for user: %s", username)
+            self._last_keepalive = time.time()
             return True
         except Exception as exc:
             logger.error("Session load failed: %s", exc)
             return False
+
+    def _try_login(self) -> bool:
+        """Attempt login using credentials from environment variables."""
+        username = os.environ.get("IG_USERNAME", "").strip()
+        password = os.environ.get("IG_PASSWORD", "").strip()
+
+        if not username or not password:
+            return False
+
+        logger.info("Attempting auto-login for %s...", username)
+        try:
+            self._loader.login(username, password)
+            self._session_username = username
+            self._loaded = True
+            self._session.headers["X-IG-App-ID"] = _IG_APP_ID
+            self._needs_manual_refresh = False
+
+            # Save session
+            session_file = SESSION_DIR / f"session-{username}"
+            self._loader.save_session_to_file(str(session_file))
+            logger.info("Auto-login successful, session saved")
+            self._last_keepalive = time.time()
+            return True
+        except instaloader.exceptions.TwoFactorAuthRequiredException:
+            logger.error("Auto-login failed: 2FA required")
+            self._needs_manual_refresh = True
+            return False
+        except instaloader.exceptions.ConnectionException as exc:
+            if "challenge_required" in str(exc):
+                logger.warning("Auto-login blocked: challenge_required")
+                self._needs_manual_refresh = True
+            else:
+                logger.error("Auto-login failed: %s", exc)
+            return False
+        except Exception as exc:
+            logger.error("Auto-login failed: %s", exc)
+            return False
+
+    def _refresh_session(self) -> bool:
+        """Try to refresh the session when it expires (401/403)."""
+        logger.info("Session expired — attempting refresh...")
+        self._loaded = False
+
+        # First try re-login
+        if self._try_login():
+            return True
+
+        # If login failed, try reloading from file
+        session_files = sorted(
+            SESSION_DIR.glob("session-*"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if session_files:
+            session_file = session_files[0]
+            username = session_file.name.replace("session-", "")
+            try:
+                self._loader.load_session_from_file(username, str(session_file))
+                self._session_username = username
+                self._loaded = True
+                self._session.headers["X-IG-App-ID"] = _IG_APP_ID
+                logger.info("Session reloaded from file")
+                return True
+            except Exception:
+                pass
+
+        self._needs_manual_refresh = True
+        return False
 
     @property
     def _session(self):
@@ -102,10 +183,36 @@ class InstagramService:
             "logged_in": self._loaded,
             "username": self._session_username,
             "has_sessionid": has_sessionid,
+            "needs_manual_refresh": self._needs_manual_refresh,
         }
 
+    def keepalive(self) -> bool:
+        """Send a lightweight request to keep the session alive."""
+        if not self._loaded:
+            return False
+
+        try:
+            resp = self._session.get(
+                "https://www.instagram.com/api/v1/accounts/current_user/",
+                timeout=_API_TIMEOUT,
+            )
+            if resp.status_code == 200:
+                self._last_keepalive = time.time()
+                self._needs_manual_refresh = False
+                logger.info("Session keepalive OK")
+                return True
+            elif resp.status_code in (401, 403):
+                logger.warning("Keepalive failed (%d) — session expired", resp.status_code)
+                return self._refresh_session()
+            else:
+                logger.warning("Keepalive got HTTP %d", resp.status_code)
+                return False
+        except Exception as exc:
+            logger.warning("Keepalive failed: %s", exc)
+            return False
+
     # ------------------------------------------------------------------
-    # API helpers
+    # API helpers (with auto-retry on session expiry)
     # ------------------------------------------------------------------
 
     def _api_get(self, path: str, **params) -> dict:
@@ -115,6 +222,14 @@ class InstagramService:
             params=params,
             timeout=_API_TIMEOUT,
         )
+        if resp.status_code in (401, 403):
+            if self._refresh_session():
+                # Retry once
+                resp = self._session.get(
+                    f"https://www.instagram.com/api/v1/{path}",
+                    params=params,
+                    timeout=_API_TIMEOUT,
+                )
         if resp.status_code == 429:
             raise ValueError("Instagramのレートリミットに達しました。数分後に再試行してください。")
         if resp.status_code != 200:
@@ -128,6 +243,14 @@ class InstagramService:
             data=data,
             timeout=_API_TIMEOUT,
         )
+        if resp.status_code in (401, 403):
+            if self._refresh_session():
+                # Retry once
+                resp = self._session.post(
+                    f"https://www.instagram.com/api/v1/{path}",
+                    data=data,
+                    timeout=_API_TIMEOUT,
+                )
         if resp.status_code == 429:
             raise ValueError("Instagramのレートリミットに達しました。数分後に再試行してください。")
         if resp.status_code != 200:
@@ -182,27 +305,40 @@ class InstagramService:
 
         # Method 3: scrape public profile page for user ID
         try:
-            import re
             resp = self._session.get(
                 f"https://www.instagram.com/{username}/",
                 timeout=_API_TIMEOUT,
             )
             if resp.status_code == 200:
                 html = resp.text
-                # Extract user ID from page source
                 match = re.search(r'"profilePage_(\d+)"', html)
                 if not match:
                     match = re.search(r'"user_id":"(\d+)"', html)
                 if not match:
-                    match = re.search(r'"id":"(\d+)".*?"username":"%s"' % re.escape(username), html)
+                    match = re.search(
+                        r'"id":"(\d+)".*?"username":"%s"' % re.escape(username), html
+                    )
                 if match:
                     user_id = int(match.group(1))
-                    # Get name from meta tag
-                    name_match = re.search(r'<meta property="og:title" content="([^"]*)"', html)
-                    full_name = name_match.group(1).split("(")[0].strip() if name_match else username
-                    pic_match = re.search(r'"profile_pic_url":"(https://[^"]+)"', html)
-                    profile_pic = pic_match.group(1).replace("\\u0026", "&") if pic_match else ""
-                    logger.info("Resolved user via HTML scrape: %s -> %s", username, user_id)
+                    name_match = re.search(
+                        r'<meta property="og:title" content="([^"]*)"', html
+                    )
+                    full_name = (
+                        name_match.group(1).split("(")[0].strip()
+                        if name_match
+                        else username
+                    )
+                    pic_match = re.search(
+                        r'"profile_pic_url":"(https://[^"]+)"', html
+                    )
+                    profile_pic = (
+                        pic_match.group(1).replace("\\u0026", "&")
+                        if pic_match
+                        else ""
+                    )
+                    logger.info(
+                        "Resolved user via HTML scrape: %s -> %s", username, user_id
+                    )
                     return {
                         "user_id": user_id,
                         "username": username,
@@ -211,8 +347,8 @@ class InstagramService:
                         "is_private": False,
                         "followers": 0,
                     }
-                elif resp.status_code == 404:
-                    raise ValueError(f"ユーザー '{username}' が見つかりません。")
+            elif resp.status_code == 404:
+                raise ValueError(f"ユーザー '{username}' が見つかりません。")
         except ValueError:
             raise
         except Exception as exc:
@@ -341,7 +477,6 @@ class InstagramService:
             if not max_id:
                 break
 
-            import time
             time.sleep(0.5)  # Rate limit protection
 
         return user, all_posts[:max_posts]

@@ -139,11 +139,11 @@ class InstagramService:
     # ------------------------------------------------------------------
 
     def _resolve_user(self, username: str) -> dict[str, Any]:
-        """Get user info + ID via instaloader or search API fallback."""
+        """Get user info + ID via instaloader, search API, or HTML scrape."""
         if not self._loaded:
             raise ValueError("No Instagram session loaded. Run setup_session.py first.")
 
-        # First try instaloader (works from residential IPs)
+        # Method 1: instaloader (works from residential IPs)
         try:
             profile = instaloader.Profile.from_username(
                 self._loader.context, username
@@ -161,7 +161,7 @@ class InstagramService:
         except Exception as exc:
             logger.warning("Profile lookup via instaloader failed: %s", exc)
 
-        # Fallback: search for user (works on VPS)
+        # Method 2: search API (works on VPS)
         try:
             data = self._api_get("web/search/topsearch/", query=username, count="1")
             users = data.get("users", [])
@@ -179,6 +179,44 @@ class InstagramService:
             logger.warning("Search API returned no match for '%s'", username)
         except Exception as exc:
             logger.warning("Search API fallback failed: %s", exc)
+
+        # Method 3: scrape public profile page for user ID
+        try:
+            import re
+            resp = self._session.get(
+                f"https://www.instagram.com/{username}/",
+                timeout=_API_TIMEOUT,
+            )
+            if resp.status_code == 200:
+                html = resp.text
+                # Extract user ID from page source
+                match = re.search(r'"profilePage_(\d+)"', html)
+                if not match:
+                    match = re.search(r'"user_id":"(\d+)"', html)
+                if not match:
+                    match = re.search(r'"id":"(\d+)".*?"username":"%s"' % re.escape(username), html)
+                if match:
+                    user_id = int(match.group(1))
+                    # Get name from meta tag
+                    name_match = re.search(r'<meta property="og:title" content="([^"]*)"', html)
+                    full_name = name_match.group(1).split("(")[0].strip() if name_match else username
+                    pic_match = re.search(r'"profile_pic_url":"(https://[^"]+)"', html)
+                    profile_pic = pic_match.group(1).replace("\\u0026", "&") if pic_match else ""
+                    logger.info("Resolved user via HTML scrape: %s -> %s", username, user_id)
+                    return {
+                        "user_id": user_id,
+                        "username": username,
+                        "full_name": full_name,
+                        "profile_pic_url": profile_pic,
+                        "is_private": False,
+                        "followers": 0,
+                    }
+                elif resp.status_code == 404:
+                    raise ValueError(f"ユーザー '{username}' が見つかりません。")
+        except ValueError:
+            raise
+        except Exception as exc:
+            logger.warning("HTML scrape fallback failed: %s", exc)
 
         raise ValueError(f"ユーザー '{username}' が見つかりません。")
 

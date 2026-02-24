@@ -15,7 +15,7 @@ mykeiba-lab.com {
 
 portfolio.heartless.tokyo {
     handle_path /ig-downloader/* {
-        reverse_proxy host.docker.internal:8001
+        reverse_proxy ig-downloader:8001
     }
     handle {
         root * /srv/portfolio

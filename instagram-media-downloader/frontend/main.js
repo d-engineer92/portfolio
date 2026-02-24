@@ -2,7 +2,7 @@
  * Instagram Media Downloader — Frontend Logic
  */
 
-const API_BASE = "";  // Same origin — served by FastAPI
+const API_BASE = window.location.pathname.replace(/\/+$/, "");  // Auto-detect subpath
 
 // DOM Elements
 const searchForm = document.getElementById("search-form");

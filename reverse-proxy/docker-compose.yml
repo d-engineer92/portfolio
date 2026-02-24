@@ -8,12 +8,18 @@ services:
             - ./Caddyfile:/etc/caddy/Caddyfile:ro
             - ./portfolio:/srv/portfolio:ro
             - caddy_data:/data
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
         restart: unless-stopped
         networks:
             - default
             - keiba_default
+
+    ig-downloader:
+        build: ../instagram-media-downloader
+        env_file:
+            - ../instagram-media-downloader/backend/.env
+        volumes:
+            - ../instagram-media-downloader/backend/.sessions:/app/backend/.sessions
+        restart: unless-stopped
 
 volumes:
     caddy_data:

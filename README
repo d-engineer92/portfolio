@@ -1,0 +1,28 @@
+# Portfolio
+
+portfolio.heartless.tokyo で公開しているプロジェクト群。
+
+## 構成
+
+```
+portfolio/
+├── reverse-proxy/          # 共有 Caddy リバースプロキシ（80/443）
+│   ├── Caddyfile
+│   ├── docker-compose.yml
+│   └── portfolio/index.html  # ポートフォリオ LP
+└── instagram-media-downloader/  # Instagram メディアダウンローダー
+    ├── backend/             # FastAPI (port 8001)
+    └── frontend/            # HTML/CSS/JS（FastAPI から配信）
+```
+
+## デプロイ
+
+```bash
+# 共有リバースプロキシ起動
+cd reverse-proxy
+docker compose up -d
+
+# Instagram Media Downloader 起動
+cd instagram-media-downloader/backend
+uvicorn main:app --port 8001
+```

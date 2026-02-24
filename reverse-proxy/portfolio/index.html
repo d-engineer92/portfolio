@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio — d-engineer92</title>
+    <meta name="description" content="Webアプリケーション開発ポートフォリオ">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-card: rgba(255, 255, 255, 0.04);
+            --bg-card-hover: rgba(255, 255, 255, 0.08);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(255, 255, 255, 0.15);
+            --text-primary: #f0f0f5;
+            --text-secondary: rgba(255, 255, 255, 0.55);
+            --accent-1: #e1306c;
+            --accent-2: #fd1d1d;
+            --accent-3: #f77737;
+            --accent-4: #833ab4;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        .bg-gradient {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background:
+                radial-gradient(ellipse 80% 60% at 20% 10%, rgba(131, 58, 180, 0.12) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 50% at 80% 80%, rgba(225, 48, 108, 0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 40% at 50% 50%, rgba(247, 119, 55, 0.06) 0%, transparent 50%);
+            animation: bgShift 12s ease-in-out infinite alternate;
+        }
+
+        @keyframes bgShift {
+            0% {
+                opacity: 0.8;
+            }
+
+            100% {
+                opacity: 1.2;
+            }
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 24px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .header h1 {
+            font-size: 2.4rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 8px;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, var(--accent-4), var(--accent-1), var(--accent-3));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header .subtitle {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            font-weight: 300;
+            line-height: 1.6;
+        }
+
+        /* Section title */
+        .section-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+            padding-left: 4px;
+        }
+
+        /* Project grid */
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 20px;
+        }
+
+        /* Project card */
+        .project-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            position: relative;
+        }
+
+        .project-card:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
+            transform: translateY(-4px);
+            box-shadow:
+                0 20px 40px -12px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.05);
+        }
+
+        .project-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-4), var(--accent-1), var(--accent-3));
+            opacity: 0;
+            transition: opacity 0.35s;
+        }
+
+        .project-card:hover::before {
+            opacity: 1;
+        }
+
+        .card-header {
+            padding: 28px 28px 0;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .card-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .card-icon.instagram {
+            background: linear-gradient(135deg, var(--accent-4), var(--accent-1), var(--accent-3));
+        }
+
+        .card-icon svg {
+            width: 28px;
+            height: 28px;
+            color: white;
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .card-body {
+            padding: 16px 28px 24px;
+        }
+
+        .card-description {
+            font-size: 0.92rem;
+            color: var(--text-secondary);
+            line-height: 1.65;
+            margin-bottom: 20px;
+        }
+
+        .tech-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .tech-tag {
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 4px 12px;
+            border-radius: 100px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: all 0.2s;
+        }
+
+        .project-card:hover .tech-tag {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .card-footer {
+            padding: 0 28px 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--accent-1);
+            opacity: 0;
+            transform: translateX(-8px);
+            transition: all 0.35s;
+        }
+
+        .project-card:hover .card-footer {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .card-footer svg {
+            width: 16px;
+            height: 16px;
+            transition: transform 0.2s;
+        }
+
+        .project-card:hover .card-footer svg {
+            transform: translateX(4px);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 80px;
+            padding: 24px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .container {
+                padding: 40px 16px;
+            }
+
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .projects-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .card-header {
+                padding: 20px 20px 0;
+            }
+
+            .card-body {
+                padding: 12px 20px 20px;
+            }
+
+            .card-footer {
+                padding: 0 20px 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-gradient"></div>
+
+    <div class="container">
+        <header class="header">
+            <h1>My <span class="gradient-text">Portfolio</span></h1>
+            <p class="subtitle">Web アプリケーション開発のプロジェクト一覧</p>
+        </header>
+
+        <p class="section-title">Projects</p>
+
+        <div class="projects-grid">
+            <!-- Instagram Media Downloader -->
+            <a href="/ig-downloader/" class="project-card">
+                <div class="card-header">
+                    <div class="card-icon instagram">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                            <circle cx="12" cy="12" r="5" />
+                            <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" />
+                        </svg>
+                    </div>
+                    <h2 class="card-title">Instagram Media Downloader</h2>
+                </div>
+                <div class="card-body">
+                    <p class="card-description">
+                        Instagramのストーリー・投稿をユーザー名だけで簡単にダウンロード。
+                        カルーセル展開、自動セッション更新、VPS対応のメディア取得エンジン搭載。
+                    </p>
+                    <div class="tech-tags">
+                        <span class="tech-tag">FastAPI</span>
+                        <span class="tech-tag">Python</span>
+                        <span class="tech-tag">Instagram API</span>
+                        <span class="tech-tag">JavaScript</span>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    アプリを開く
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                    </svg>
+                </div>
+            </a>
+
+            <!-- 今後追加するプロジェクトのテンプレート -->
+            <!--
+            <a href="/project-path/" class="project-card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #00b4d8, #0077b6);">
+                        <svg>...</svg>
+                    </div>
+                    <h2 class="card-title">プロジェクト名</h2>
+                </div>
+                <div class="card-body">
+                    <p class="card-description">説明文</p>
+                    <div class="tech-tags">
+                        <span class="tech-tag">Tech</span>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    アプリを開く
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                    </svg>
+                </div>
+            </a>
+            -->
+        </div>
+
+        <footer class="footer">
+            <p>&copy; 2026 Portfolio. Built with passion.</p>
+        </footer>
+    </div>
+</body>
+
+</html>

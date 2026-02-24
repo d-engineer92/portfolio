@@ -1,6 +1,6 @@
-# Instagram Story Downloader
+# Instagram Media Downloader
 
-Instagramのストーリーをユーザー名だけで取得・ダウンロードできるWebアプリ。
+Instagramのストーリー・投稿をユーザー名だけで取得・ダウンロードできるWebアプリ。
 
 ## 技術スタック
 
@@ -8,7 +8,7 @@ Instagramのストーリーをユーザー名だけで取得・ダウンロー�
 |---|---|
 | Frontend | HTML / CSS / JavaScript |
 | Backend | Python / FastAPI |
-| Instagram API | instaloader (セッション管理) + Direct Web API (ストーリー取得) |
+| Instagram API | instaloader (セッション管理) + Direct Web API (ストーリー・投稿取得) |
 
 ## セットアップ
 
@@ -33,21 +33,16 @@ python setup_session.py --browser-cookie
 ```
 
 > **Note**: instaloader のログインだけでは `sessionid` が空になる場合があります。
-> ストーリー取得にはブラウザからの `sessionid` インポートが必要です。
+> ストーリー・投稿取得にはブラウザからの `sessionid` インポートが必要です。
 
 ### 3. 起動
 
 ```bash
-# バックエンド
 cd backend
-uvicorn main:app --port 8000
-
-# フロントエンド（別ターミナル）
-cd frontend
-python -m http.server 5500
+uvicorn main:app --port 8001
 ```
 
-ブラウザで http://localhost:5500 にアクセス。
+ブラウザで http://localhost:8001 にアクセス。
 
 ## API
 
@@ -55,7 +50,9 @@ python -m http.server 5500
 |---|---|---|
 | GET | `/api/session/status` | セッション状態 |
 | GET | `/api/stories/{username}` | ストーリー取得 |
+| GET | `/api/posts/{username}` | 投稿取得 |
 | GET | `/api/proxy/media?url=...` | メディアプロキシ |
+| GET | `/api/health` | ヘルスチェック |
 
 ## 技術的な知見
 

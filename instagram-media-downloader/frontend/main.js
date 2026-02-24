@@ -1,5 +1,5 @@
 /**
- * InstaGrab Downloader — Frontend Logic
+ * Instagram Media Downloader — Frontend Logic
  */
 
 const API_BASE = "";  // Same origin — served by FastAPI

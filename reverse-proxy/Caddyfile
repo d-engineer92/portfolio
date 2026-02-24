@@ -1,0 +1,24 @@
+mykeiba-lab.com {
+    handle_path /jravan-weather/* {
+        rewrite * /weather{uri}
+        reverse_proxy https://jra-van.jp {
+            header_up Host jra-van.jp
+        }
+    }
+    handle /api/* {
+        reverse_proxy keiba-api-1:8000
+    }
+    handle {
+        reverse_proxy keiba-frontend-1:80
+    }
+}
+
+portfolio.heartless.tokyo {
+    handle_path /ig-downloader/* {
+        reverse_proxy host.docker.internal:8001
+    }
+    handle {
+        root * /srv/portfolio
+        file_server
+    }
+}

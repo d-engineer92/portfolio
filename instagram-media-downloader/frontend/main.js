@@ -4,6 +4,11 @@
 
 const API_BASE = window.location.pathname.replace(/\/+$/, "");  // Auto-detect subpath
 
+// Proxy URL helper — only used for downloads (fetch needs CORS proxy)
+function proxyUrl(url) {
+    return `${API_BASE}/api/proxy/media?url=${encodeURIComponent(url)}`;
+}
+
 // DOM Elements
 const searchForm = document.getElementById("search-form");
 const usernameInput = document.getElementById("username-input");
@@ -36,6 +41,8 @@ let currentStories = [];
 let currentPosts = [];
 let activeTab = "stories";
 let currentUsername = "";
+let renderedPostCount = 0;
+const POST_BATCH_SIZE = 30;
 
 // ---------------------------------------------------------------------------
 // Init
@@ -74,8 +81,8 @@ function switchTab(tab) {
     const items = tab === "stories" ? currentStories : currentPosts;
     downloadAllSection.hidden = items.length === 0;
 
-    // Show "no content" if empty
-    if (items.length === 0 && currentUsername) {
+    // Show "no content" if empty (but not while posts are still loading)
+    if (items.length === 0 && currentUsername && !postsLoadingEl) {
         noContentText.textContent = tab === "stories"
             ? "現在ストーリーはありません"
             : "投稿が見つかりません";
@@ -100,48 +107,61 @@ searchForm.addEventListener("submit", async (e) => {
     contentTabs.hidden = true;
     downloadAllSection.hidden = true;
     storiesGrid.innerHTML = "";
+    removeSentinel();
     postsGrid.innerHTML = "";
     noContent.hidden = true;
     currentStories = [];
     currentPosts = [];
+    renderedPostCount = 0;
 
     // Show loading
     setLoading(true);
 
     try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        // 1. Fetch stories (fast) — shows profile + stories
+        const storiesCtrl = new AbortController();
+        const storiesTimeout = setTimeout(() => storiesCtrl.abort(), 15000);
 
-        // Fetch stories and posts in parallel
-        const [storiesResp, postsResp] = await Promise.all([
-            fetch(`${API_BASE}/api/stories/${encodeURIComponent(username)}`, { signal: controller.signal }),
-            fetch(`${API_BASE}/api/posts/${encodeURIComponent(username)}`, { signal: controller.signal }),
-        ]);
-        clearTimeout(timeoutId);
+        const storiesResp = await fetch(
+            `${API_BASE}/api/stories/${encodeURIComponent(username)}`,
+            { signal: storiesCtrl.signal },
+        );
+        clearTimeout(storiesTimeout);
 
-        // Handle stories
         if (storiesResp.ok) {
             const storiesData = await storiesResp.json();
             showProfile(storiesData.user);
             showStories(storiesData.stories);
         } else {
             const err = await storiesResp.json().catch(() => ({ detail: "エラー" }));
-            // If it's a user not found error, throw
             if (storiesResp.status === 404) throw new Error(err.detail);
         }
 
-        // Handle posts
-        if (postsResp.ok) {
-            const postsData = await postsResp.json();
-            if (!userProfile.hidden === false) showProfile(postsData.user);
-            showPosts(postsData.posts);
-        }
-
-        // Show tabs
+        // Show tabs + stories immediately
         contentTabs.hidden = false;
         switchTab("stories");
+        setLoading(false);
+
+        // 2. Fetch posts (may take longer) — loading indicator on posts tab
+        setPostsLoading(true);
+        const postsCtrl = new AbortController();
+        const postsTimeout = setTimeout(() => postsCtrl.abort(), 120000);
+
+        const postsResp = await fetch(
+            `${API_BASE}/api/posts/${encodeURIComponent(username)}?count=200`,
+            { signal: postsCtrl.signal },
+        );
+        clearTimeout(postsTimeout);
+
+        if (postsResp.ok) {
+            const postsData = await postsResp.json();
+            if (userProfile.hidden) showProfile(postsData.user);
+            showPosts(postsData.posts);
+        }
+        setPostsLoading(false);
 
     } catch (err) {
+        setPostsLoading(false);
         if (err.name === "AbortError") {
             showError("リクエストがタイムアウトしました。数分後に再試行してください。");
         } else {
@@ -158,7 +178,7 @@ searchForm.addEventListener("submit", async (e) => {
 
 function showProfile(user) {
     if (!user) return;
-    profilePic.src = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(user.profile_pic_url)}`;
+    profilePic.src = proxyUrl(user.profile_pic_url);
     profilePic.alt = user.username;
     profileName.textContent = user.full_name || user.username;
     profileUsername.textContent = `@${user.username}`;
@@ -174,44 +194,51 @@ function showStories(stories) {
     currentStories = stories;
     storyCountBadge.textContent = stories.length;
 
+    const fragment = document.createDocumentFragment();
     stories.forEach((story, index) => {
-        const card = createStoryCard(story, index);
-        storiesGrid.appendChild(card);
+        fragment.appendChild(createStoryCard(story, index));
     });
+    storiesGrid.appendChild(fragment);
 }
 
 function createStoryCard(story, index) {
     const card = document.createElement("div");
     card.className = "story-card";
-    card.style.animationDelay = `${index * 0.08}s`;
+    if (index < 6) {
+        card.style.animationDelay = `${index * 0.08}s`;
+    } else {
+        card.style.animation = "none";
+    }
 
     const mediaWrapper = document.createElement("div");
     mediaWrapper.className = "story-media-wrapper";
 
     if (story.media_type === "video") {
         const video = document.createElement("video");
-        video.src = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(story.url)}`;
-        video.poster = story.thumbnail_url
-            ? `${API_BASE}/api/proxy/media?url=${encodeURIComponent(story.thumbnail_url)}`
-            : "";
         video.muted = true;
         video.loop = true;
         video.playsInline = true;
-        video.preload = "metadata";
-        card.addEventListener("mouseenter", () => video.play().catch(() => { }));
+        video.preload = "none";
+        video.referrerPolicy = "no-referrer";
+        video.poster = story.thumbnail_url || "";
+        video.dataset.src = story.url;
+        card.addEventListener("mouseenter", () => {
+            if (video.dataset.src) { video.src = video.dataset.src; delete video.dataset.src; }
+            video.play().catch(() => { });
+        });
         card.addEventListener("mouseleave", () => { video.pause(); video.currentTime = 0; });
         mediaWrapper.appendChild(video);
     } else {
         const img = document.createElement("img");
-        img.src = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(story.url)}`;
         img.alt = "Story";
-        img.loading = "lazy";
+        img.referrerPolicy = "no-referrer";
+        img.src = story.url;
         mediaWrapper.appendChild(img);
     }
 
     const badge = document.createElement("span");
     badge.className = "media-type-badge";
-    badge.textContent = story.media_type === "video" ? "🎬 動画" : "📷 画像";
+    badge.textContent = story.media_type === "video" ? "動画" : "画像";
     mediaWrapper.appendChild(badge);
 
     const footer = document.createElement("div");
@@ -233,84 +260,137 @@ function createStoryCard(story, index) {
 }
 
 // ---------------------------------------------------------------------------
-// Posts Display
+// Posts Display — batch rendering with infinite scroll
 // ---------------------------------------------------------------------------
+
+let postSentinel = null;
+const postSentinelObserver = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) renderPostBatch();
+}, { rootMargin: "400px" });
 
 function showPosts(posts) {
     currentPosts = posts;
     postCountBadge.textContent = posts.length;
+    renderedPostCount = 0;
+    removeSentinel();
+    renderPostBatch();
+}
 
-    posts.forEach((post, index) => {
-        const card = createPostCard(post, index);
-        postsGrid.appendChild(card);
-    });
+function renderPostBatch() {
+    if (renderedPostCount >= currentPosts.length) return;
+    removeSentinel();
+
+    const end = Math.min(renderedPostCount + POST_BATCH_SIZE, currentPosts.length);
+    const fragment = document.createDocumentFragment();
+    for (let i = renderedPostCount; i < end; i++) {
+        fragment.appendChild(createPostCard(currentPosts[i], i));
+    }
+    postsGrid.appendChild(fragment);
+    renderedPostCount = end;
+
+    if (renderedPostCount < currentPosts.length) {
+        postSentinel = document.createElement("div");
+        postSentinel.className = "post-sentinel";
+        postSentinel.style.height = "1px";
+        postsGrid.appendChild(postSentinel);
+        postSentinelObserver.observe(postSentinel);
+    }
+}
+
+function removeSentinel() {
+    if (postSentinel) {
+        postSentinelObserver.unobserve(postSentinel);
+        postSentinel.remove();
+        postSentinel = null;
+    }
 }
 
 function createPostCard(post, index) {
     const card = document.createElement("div");
-    card.className = "post-card";
-    card.style.animationDelay = `${index * 0.05}s`;
-
-    // Thumbnail
-    const thumbUrl = post.thumbnail_url || post.url;
-    if (post.media_type === "video" && post.thumbnail_url) {
-        const img = document.createElement("img");
-        img.src = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(post.thumbnail_url)}`;
-        img.alt = "Post";
-        img.loading = "lazy";
-        card.appendChild(img);
-    } else {
-        const img = document.createElement("img");
-        img.src = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(post.url)}`;
-        img.alt = "Post";
-        img.loading = "lazy";
-        card.appendChild(img);
+    card.className = index < 9 ? "post-card post-card--animated" : "post-card";
+    if (index < 9) {
+        card.style.animationDelay = `${index * 0.04}s`;
     }
+    // Store post index for event delegation
+    card.dataset.postIndex = index;
 
-    // Video badge
+    // Direct CDN URL — async decode, no-referrer to avoid CDN blocking
+    const img = document.createElement("img");
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.referrerPolicy = "no-referrer";
+    img.src = post.thumbnail_url || post.url;
+    // Fallback to proxy if CDN blocks direct access
+    img.onerror = function () {
+        if (!this.dataset.retried) {
+            this.dataset.retried = "1";
+            this.src = proxyUrl(post.thumbnail_url || post.url);
+        }
+    };
+    card.appendChild(img);
+
+    // Lightweight badges via data attributes (rendered by CSS)
     if (post.media_type === "video") {
-        const videoBadge = document.createElement("div");
-        videoBadge.className = "post-video-badge";
-        videoBadge.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
-        card.appendChild(videoBadge);
+        card.dataset.video = "";
     }
-
-    // Carousel badge
     if (post.carousel_total) {
-        const carouselBadge = document.createElement("div");
-        carouselBadge.className = "post-carousel-badge";
-        carouselBadge.textContent = `${(post.carousel_index || 0) + 1}/${post.carousel_total}`;
-        card.appendChild(carouselBadge);
-    }
-
-    // Hover overlay
-    const overlay = document.createElement("div");
-    overlay.className = "post-overlay";
-
-    const stats = document.createElement("div");
-    stats.className = "post-overlay-stats";
-    stats.innerHTML = `<span>♥ ${formatNumber(post.like_count || 0)}</span>`;
-    overlay.appendChild(stats);
-
-    const dlBtn = createDownloadButton();
-    dlBtn.addEventListener("click", (e) => { e.stopPropagation(); downloadMedia(post); });
-    overlay.appendChild(dlBtn);
-
-    card.appendChild(overlay);
-
-    // Caption
-    if (post.caption) {
-        const caption = document.createElement("div");
-        caption.className = "post-caption";
-        caption.textContent = post.caption;
-        card.appendChild(caption);
+        card.dataset.carousel = `${(post.carousel_index || 0) + 1}/${post.carousel_total}`;
     }
 
     return card;
 }
 
 // ---------------------------------------------------------------------------
-// Download
+// Post grid — event delegation (single listener, no per-card DOM)
+// ---------------------------------------------------------------------------
+
+// Shared overlay for hover (PC) — created once, moved on hover
+const postOverlay = document.createElement("div");
+postOverlay.className = "post-overlay";
+postOverlay.innerHTML = `
+    <div class="post-overlay-stats"><span class="post-overlay-likes"></span></div>
+    <button class="download-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        保存
+    </button>`;
+const overlayLikes = postOverlay.querySelector(".post-overlay-likes");
+const overlayDlBtn = postOverlay.querySelector(".download-btn");
+let overlayPostIndex = -1;
+
+postsGrid.addEventListener("pointerenter", (e) => {
+    const card = e.target.closest(".post-card");
+    if (!card || !card.dataset.postIndex) return;
+    const idx = parseInt(card.dataset.postIndex);
+    if (idx === overlayPostIndex && postOverlay.parentNode === card) return;
+    overlayPostIndex = idx;
+    const post = currentPosts[idx];
+    if (!post) return;
+    overlayLikes.textContent = `♥ ${formatNumber(post.like_count || 0)}`;
+    card.appendChild(postOverlay);
+}, true);
+
+overlayDlBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (overlayPostIndex >= 0 && currentPosts[overlayPostIndex]) {
+        downloadMedia(currentPosts[overlayPostIndex]);
+    }
+});
+
+// Mobile: tap card to download
+postsGrid.addEventListener("click", (e) => {
+    if (window.matchMedia("(hover: none)").matches) {
+        const card = e.target.closest(".post-card");
+        if (!card || !card.dataset.postIndex) return;
+        downloadMedia(currentPosts[parseInt(card.dataset.postIndex)]);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Download — uses proxy (fetch needs CORS)
 // ---------------------------------------------------------------------------
 
 function createDownloadButton() {
@@ -329,10 +409,9 @@ function createDownloadButton() {
 async function downloadMedia(item) {
     const ext = item.media_type === "video" ? "mp4" : "jpg";
     const filename = `${item.username}_${item.id}.${ext}`;
-    const proxyUrl = `${API_BASE}/api/proxy/media?url=${encodeURIComponent(item.url)}`;
 
     try {
-        const resp = await fetch(proxyUrl);
+        const resp = await fetch(proxyUrl(item.url));
         const blob = await resp.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -364,6 +443,21 @@ function setLoading(loading) {
     btnText.hidden = loading;
     btnLoading.hidden = !loading;
     skeletonLoading.hidden = !loading;
+}
+
+let postsLoadingEl = null;
+
+function setPostsLoading(loading) {
+    if (loading) {
+        postsLoadingEl = document.createElement("div");
+        postsLoadingEl.className = "posts-loading";
+        postsLoadingEl.innerHTML = `<span class="spinner"></span> 投稿を読み込み中...`;
+        postsGrid.appendChild(postsLoadingEl);
+        tabPosts.classList.add("loading");
+    } else {
+        if (postsLoadingEl) { postsLoadingEl.remove(); postsLoadingEl = null; }
+        tabPosts.classList.remove("loading");
+    }
 }
 
 function showError(msg) {

@@ -481,6 +481,27 @@ body {
     background: rgba(255, 255, 255, 0.3);
 }
 
+.tab.loading .tab-badge {
+    animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* Posts loading indicator */
+.posts-loading {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 48px 16px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
 /* ============================================
    Story Card
    ============================================ */
@@ -601,7 +622,10 @@ body {
     overflow: hidden;
     aspect-ratio: 1;
     cursor: pointer;
-    animation: cardIn 0.5s ease both;
+}
+
+.post-card--animated {
+    animation: cardIn 0.4s ease both;
 }
 
 .post-card img,
@@ -610,15 +634,8 @@ body {
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform 0.3s ease;
 }
 
-.post-card:hover img,
-.post-card:hover video {
-    transform: scale(1.05);
-}
-
-/* Overlay on hover */
 .post-overlay {
     position: absolute;
     inset: 0;
@@ -632,8 +649,20 @@ body {
     transition: opacity 0.3s ease;
 }
 
-.post-card:hover .post-overlay {
-    opacity: 1;
+@media (hover: hover) {
+    .post-card img,
+    .post-card video {
+        transition: transform 0.3s ease;
+    }
+
+    .post-card:hover img,
+    .post-card:hover video {
+        transform: scale(1.05);
+    }
+
+    .post-card:hover .post-overlay {
+        opacity: 1;
+    }
 }
 
 .post-overlay-stats {
@@ -656,54 +685,37 @@ body {
     font-size: 13px;
 }
 
-/* Carousel badge */
-.post-carousel-badge {
+/* Carousel badge (via data attribute) */
+.post-card[data-carousel]::after {
+    content: attr(data-carousel);
     position: absolute;
     top: 8px;
     right: 8px;
     padding: 4px 8px;
     border-radius: var(--radius-sm);
     background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(8px);
     color: white;
     font-size: 11px;
     font-weight: 600;
-}
-
-/* Video badge */
-.post-video-badge {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-}
-
-.post-video-badge svg {
-    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
-}
-
-/* Post caption tooltip */
-.post-caption {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 32px 12px 12px;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
-    color: white;
-    font-size: 12px;
-    line-height: 1.4;
-    opacity: 0;
-    transition: opacity 0.3s ease;
     pointer-events: none;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
 }
 
-.post-card:hover .post-caption {
-    opacity: 1;
+/* Video badge (via data attribute) */
+.post-card[data-video]::before {
+    content: "";
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 8px 0 8px 14px;
+    border-color: transparent transparent transparent white;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+    z-index: 1;
+    pointer-events: none;
 }
+
 
 /* ============================================
    Skeleton Loading
@@ -774,6 +786,10 @@ body {
    ============================================ */
 
 @media (max-width: 640px) {
+    .bg-gradient {
+        animation: none;
+    }
+
     .container {
         padding: 24px 16px 40px;
     }
@@ -790,6 +806,12 @@ body {
         flex-direction: column;
         border-radius: var(--radius-lg);
         padding: 4px;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+
+    .post-card--animated {
+        animation: none;
     }
 
     .at-symbol {
@@ -810,6 +832,8 @@ body {
 
     .profile-card {
         flex-wrap: wrap;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 
     .stories-grid {
@@ -819,6 +843,28 @@ body {
 
     .posts-grid {
         gap: 2px;
+    }
+
+    .post-overlay {
+        display: none;
+    }
+
+    /* Download icon on each post card (tap to save) */
+    .post-card::after,
+    .post-card[data-carousel]::after {
+        content: "" !important;
+        position: absolute;
+        bottom: 6px;
+        right: 6px;
+        top: auto;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.5) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' y1='15' x2='12' y2='3'/%3E%3C/svg%3E") center / 14px no-repeat;
+        font-size: 0;
+        pointer-events: none;
+        z-index: 1;
     }
 
     .tab {

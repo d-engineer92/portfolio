@@ -94,7 +94,7 @@ async def session_status():
 
 
 @app.get("/api/stories/{username}")
-async def get_stories(username: str):
+def get_stories(username: str):
     """Fetch Instagram stories for a given username."""
     if not _USERNAME_RE.match(username):
         raise HTTPException(status_code=400, detail="Invalid username format.")
@@ -125,7 +125,7 @@ async def get_stories(username: str):
 
 
 @app.get("/api/posts/{username}")
-async def get_posts(username: str, count: int = 100):
+def get_posts(username: str, count: int = 200):
     """Fetch Instagram posts for a given username."""
     if not _USERNAME_RE.match(username):
         raise HTTPException(status_code=400, detail="Invalid username format.")
@@ -136,7 +136,7 @@ async def get_posts(username: str, count: int = 100):
         raise HTTPException(status_code=503, detail="No Instagram session. Run setup_session.py.")
 
     try:
-        user_info, posts = service.get_posts(username, max_posts=min(count, 200))
+        user_info, posts = service.get_posts(username, max_posts=min(count, 500))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:

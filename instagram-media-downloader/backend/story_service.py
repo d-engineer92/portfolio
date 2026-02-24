@@ -448,11 +448,12 @@ class InstagramService:
 
         user = self._enrich_user_info(user)
 
-        all_posts: list[dict[str, Any]] = []
+        all_media: list[dict[str, Any]] = []
+        fetched_posts = 0
         max_id = None
-        page_size = 12
+        page_size = 33
 
-        while len(all_posts) < max_posts:
+        while fetched_posts < max_posts:
             params: dict[str, str] = {"count": str(page_size)}
             if max_id:
                 params["max_id"] = max_id
@@ -468,7 +469,8 @@ class InstagramService:
                 break
 
             for item in items:
-                all_posts.extend(self._parse_post_item(item, username))
+                all_media.extend(self._parse_post_item(item, username))
+            fetched_posts += len(items)
 
             if not data.get("more_available", False):
                 break
@@ -479,7 +481,7 @@ class InstagramService:
 
             time.sleep(0.5)  # Rate limit protection
 
-        return user, all_posts[:max_posts]
+        return user, all_media
 
     def _parse_post_item(self, item: dict, username: str) -> list[dict[str, Any]]:
         """Parse a post item. Carousels are expanded into multiple items."""

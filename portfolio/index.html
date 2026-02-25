@@ -245,6 +245,40 @@
             background: #fff;
         }
 
+        .skillsheet-mobile-fallback {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .skillsheet-open-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 14px 28px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent-4), var(--accent-1));
+            border-radius: 12px;
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+        .skillsheet-open-btn:hover {
+            opacity: 0.85;
+        }
+
+        .skillsheet-open-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
         .skillsheet-download {
             display: inline-flex;
             align-items: center;
@@ -302,12 +336,15 @@
             }
 
             .skillsheet-container iframe {
-                height: 400px;
+                display: none;
+            }
+
+            .skillsheet-mobile-fallback {
+                display: block;
             }
 
             .skillsheet-download {
-                font-size: 0.95rem;
-                margin-top: 12px;
+                display: none;
             }
         }
     </style>
@@ -358,6 +395,17 @@
             <p class="section-title">Skill Sheet</p>
             <div class="skillsheet-container">
                 <iframe src="%E3%82%B9%E3%82%AD%E3%83%AB%E3%82%B7%E3%83%BC%E3%83%88.pdf" title="スキルシート"></iframe>
+                <div class="skillsheet-mobile-fallback">
+                    <p>PDF の表示はデスクトップブラウザに対応しています</p>
+                    <a href="%E3%82%B9%E3%82%AD%E3%83%AB%E3%82%B7%E3%83%BC%E3%83%88.pdf" class="skillsheet-open-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        PDF を開く
+                    </a>
+                </div>
                 <a href="%E3%82%B9%E3%82%AD%E3%83%AB%E3%82%B7%E3%83%BC%E3%83%88.pdf" download class="skillsheet-download">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>

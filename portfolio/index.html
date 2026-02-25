@@ -246,6 +246,48 @@
             transform: translateX(4px);
         }
 
+        /* Skill Sheet section */
+        .skillsheet-section {
+            margin-top: 60px;
+        }
+
+        .skillsheet-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            padding: 28px;
+        }
+
+        .skillsheet-container iframe {
+            width: 100%;
+            height: 600px;
+            border: none;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .skillsheet-download {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--accent-1);
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+        .skillsheet-download:hover {
+            opacity: 0.75;
+        }
+
+        .skillsheet-download svg {
+            width: 18px;
+            height: 18px;
+        }
+
         /* Footer */
         .footer {
             text-align: center;
@@ -279,6 +321,19 @@
 
             .card-footer {
                 padding: 0 20px 20px;
+            }
+
+            .skillsheet-container {
+                padding: 16px;
+            }
+
+            .skillsheet-container iframe {
+                height: 400px;
+            }
+
+            .skillsheet-download {
+                font-size: 0.95rem;
+                margin-top: 12px;
             }
         }
     </style>
@@ -354,6 +409,21 @@
                 </div>
             </a>
             -->
+        </div>
+
+        <div class="skillsheet-section">
+            <p class="section-title">Skill Sheet</p>
+            <div class="skillsheet-container">
+                <iframe src="%E3%82%B9%E3%82%AD%E3%83%AB%E3%82%B7%E3%83%BC%E3%83%88.pdf" title="スキルシート"></iframe>
+                <a href="%E3%82%B9%E3%82%AD%E3%83%AB%E3%82%B7%E3%83%BC%E3%83%88.pdf" download class="skillsheet-download">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    PDF をダウンロード
+                </a>
+            </div>
         </div>
 
         <footer class="footer">

@@ -46,6 +46,17 @@ class InstagramService:
         self._loaded = False
         self._needs_manual_refresh = False
         self._last_keepalive: float = 0
+        self._proxy_url = os.environ.get("PROXY_URL", "").strip() or None
+        if self._proxy_url:
+            logger.info("Using proxy: %s", self._proxy_url)
+
+    def _apply_proxy(self) -> None:
+        """Apply residential proxy to the requests session if configured."""
+        if self._proxy_url:
+            self._session.proxies = {
+                "http": self._proxy_url,
+                "https": self._proxy_url,
+            }
 
     # ------------------------------------------------------------------
     # Session management
@@ -81,6 +92,7 @@ class InstagramService:
             self._session_username = username
             self._loaded = True
             self._session.headers["X-IG-App-ID"] = _IG_APP_ID
+            self._apply_proxy()
 
             has_sessionid = any(
                 c.name == "sessionid" and c.value for c in self._session.cookies
@@ -100,7 +112,7 @@ class InstagramService:
             return False
 
     def _try_login(self) -> bool:
-        """Attempt login using credentials from environment variables."""
+        """Attempt login directly via Instagram's login API."""
         username = os.environ.get("IG_USERNAME", "").strip()
         password = os.environ.get("IG_PASSWORD", "").strip()
 
@@ -109,29 +121,75 @@ class InstagramService:
 
         logger.info("Attempting auto-login for %s...", username)
         try:
-            self._loader.login(username, password)
+            import requests as req
+
+            session = req.Session()
+            session.headers.update({
+                "User-Agent": self._session.headers.get(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36",
+                ),
+                "X-IG-App-ID": _IG_APP_ID,
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": "https://www.instagram.com/accounts/login/",
+                "Origin": "https://www.instagram.com",
+            })
+            if self._proxy_url:
+                session.proxies = {"http": self._proxy_url, "https": self._proxy_url}
+
+            # Get CSRF token
+            session.get("https://www.instagram.com/accounts/login/", timeout=_API_TIMEOUT)
+            csrf = session.cookies.get("csrftoken", "")
+            if not csrf:
+                logger.error("Auto-login: failed to get CSRF token")
+                return False
+            session.headers["X-CSRFToken"] = csrf
+
+            # Login
+            ts = int(time.time())
+            resp = session.post(
+                "https://www.instagram.com/accounts/login/ajax/",
+                data={
+                    "username": username,
+                    "enc_password": f"#PWD_INSTAGRAM_BROWSER:0:{ts}:{password}",
+                    "queryParams": "{}",
+                    "optIntoOneTap": "false",
+                },
+                timeout=_API_TIMEOUT,
+            )
+            data = resp.json()
+
+            if not data.get("authenticated"):
+                msg = data.get("message", "unknown")
+                if data.get("two_factor_required"):
+                    logger.error("Auto-login failed: 2FA required (manual setup needed)")
+                    self._needs_manual_refresh = True
+                elif "checkpoint" in str(data):
+                    logger.warning("Auto-login blocked: challenge_required")
+                    self._needs_manual_refresh = True
+                else:
+                    logger.error("Auto-login failed: %s", msg)
+                return False
+
+            # Transfer cookies to instaloader session
+            for cookie in session.cookies:
+                self._session.cookies.set(cookie.name, cookie.value)
+            self._session.headers["X-IG-App-ID"] = _IG_APP_ID
             self._session_username = username
             self._loaded = True
-            self._session.headers["X-IG-App-ID"] = _IG_APP_ID
+            self._apply_proxy()
             self._needs_manual_refresh = False
 
             # Save session
             session_file = SESSION_DIR / f"session-{username}"
-            self._loader.save_session_to_file(str(session_file))
+            cookie_dict = {c.name: c.value for c in session.cookies}
+            with open(session_file, "wb") as f:
+                pickle.dump(cookie_dict, f)
             logger.info("Auto-login successful, session saved")
             self._last_keepalive = time.time()
             return True
-        except instaloader.exceptions.TwoFactorAuthRequiredException:
-            logger.error("Auto-login failed: 2FA required")
-            self._needs_manual_refresh = True
-            return False
-        except instaloader.exceptions.ConnectionException as exc:
-            if "challenge_required" in str(exc):
-                logger.warning("Auto-login blocked: challenge_required")
-                self._needs_manual_refresh = True
-            else:
-                logger.error("Auto-login failed: %s", exc)
-            return False
         except Exception as exc:
             logger.error("Auto-login failed: %s", exc)
             return False
@@ -159,6 +217,7 @@ class InstagramService:
                 self._session_username = username
                 self._loaded = True
                 self._session.headers["X-IG-App-ID"] = _IG_APP_ID
+                self._apply_proxy()
                 logger.info("Session reloaded from file")
                 return True
             except Exception:

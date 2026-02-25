@@ -21,6 +21,13 @@ SESSION_DIR = Path(__file__).parent / ".sessions"
 # Instagram Web App ID (required for API calls)
 _IG_APP_ID = "936619743392459"
 
+# Consistent User-Agent (must match what was used during login)
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
+
 # Timeout for API calls
 _API_TIMEOUT = 15
 
@@ -92,6 +99,7 @@ class InstagramService:
             self._session_username = username
             self._loaded = True
             self._session.headers["X-IG-App-ID"] = _IG_APP_ID
+            self._session.headers["User-Agent"] = _USER_AGENT
             self._apply_proxy()
 
             has_sessionid = any(
@@ -125,12 +133,7 @@ class InstagramService:
 
             session = req.Session()
             session.headers.update({
-                "User-Agent": self._session.headers.get(
-                    "User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/131.0.0.0 Safari/537.36",
-                ),
+                "User-Agent": _USER_AGENT,
                 "X-IG-App-ID": _IG_APP_ID,
                 "X-Requested-With": "XMLHttpRequest",
                 "Referer": "https://www.instagram.com/accounts/login/",
@@ -217,6 +220,7 @@ class InstagramService:
                 self._session_username = username
                 self._loaded = True
                 self._session.headers["X-IG-App-ID"] = _IG_APP_ID
+                self._session.headers["User-Agent"] = _USER_AGENT
                 self._apply_proxy()
                 logger.info("Session reloaded from file")
                 return True
@@ -252,7 +256,7 @@ class InstagramService:
 
         try:
             resp = self._session.get(
-                "https://www.instagram.com/api/v1/accounts/current_user/",
+                "https://www.instagram.com/api/v1/feed/reels_tray/",
                 timeout=_API_TIMEOUT,
             )
             if resp.status_code == 200:
@@ -325,23 +329,25 @@ class InstagramService:
         if not self._loaded:
             raise ValueError("No Instagram session loaded. Run setup_session.py first.")
 
-        # Method 1: instaloader (works from residential IPs)
-        try:
-            profile = instaloader.Profile.from_username(
-                self._loader.context, username
-            )
-            return {
-                "user_id": profile.userid,
-                "username": profile.username,
-                "full_name": profile.full_name,
-                "profile_pic_url": profile.profile_pic_url,
-                "is_private": profile.is_private,
-                "followers": profile.followers,
-            }
-        except instaloader.exceptions.ProfileNotExistsException:
-            raise ValueError(f"ユーザー '{username}' が見つかりません。")
-        except Exception as exc:
-            logger.warning("Profile lookup via instaloader failed: %s", exc)
+        # Method 1: instaloader (skip when proxy is configured —
+        # web_profile_info at i.instagram.com returns 429 from most IPs)
+        if not self._proxy_url:
+            try:
+                profile = instaloader.Profile.from_username(
+                    self._loader.context, username
+                )
+                return {
+                    "user_id": profile.userid,
+                    "username": profile.username,
+                    "full_name": profile.full_name,
+                    "profile_pic_url": profile.profile_pic_url,
+                    "is_private": profile.is_private,
+                    "followers": profile.followers,
+                }
+            except instaloader.exceptions.ProfileNotExistsException:
+                raise ValueError(f"ユーザー '{username}' が見つかりません。")
+            except Exception as exc:
+                logger.warning("Profile lookup via instaloader failed: %s", exc)
 
         # Method 2: search API (works on VPS)
         try:

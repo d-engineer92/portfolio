@@ -53,6 +53,7 @@ class InstagramService:
         self._loaded = False
         self._needs_manual_refresh = False
         self._last_keepalive: float = 0
+        self._last_refresh_attempt: float = 0
         self._proxy_url = os.environ.get("PROXY_URL", "").strip() or None
         if self._proxy_url:
             logger.info("Using proxy: %s", self._proxy_url)
@@ -197,8 +198,21 @@ class InstagramService:
             logger.error("Auto-login failed: %s", exc)
             return False
 
+    # Minimum interval between refresh attempts (seconds)
+    _REFRESH_COOLDOWN = 60
+
     def _refresh_session(self) -> bool:
         """Try to refresh the session when it expires (401/403)."""
+        now = time.time()
+        elapsed = now - self._last_refresh_attempt
+        if elapsed < self._REFRESH_COOLDOWN:
+            logger.info(
+                "Refresh cooldown active (%.0fs remaining), skipping",
+                self._REFRESH_COOLDOWN - elapsed,
+            )
+            return self._loaded
+
+        self._last_refresh_attempt = now
         logger.info("Session expired — attempting refresh...")
         self._loaded = False
 

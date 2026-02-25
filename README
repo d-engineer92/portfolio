@@ -6,16 +6,20 @@ portfolio.heartless.tokyo で公開しているプロジェクト群。
 
 ```
 portfolio/
-├── docker-compose.yml          # ig-downloader コンテナ管理
+├── docker-compose.yml          # Image Optimizer　コンテナ管理
 ├── portfolio/index.html        # ポートフォリオ LP（Caddy から配信）
-└── instagram-media-downloader/ # Instagram メディアダウンローダー
-    ├── backend/                # FastAPI
+├── instagram-media-downloader/ # Instagram メディアダウンローダー
+│   ├── backend/                # FastAPI
+│   └── frontend/               # HTML/CSS/JS（FastAPI から配信）
+└── image-optimizer/            # 画像サイズ最適化ツール
+    ├── backend/                # FastAPI + Pillow
     └── frontend/               # HTML/CSS/JS（FastAPI から配信）
 ```
 
 ## デプロイ
 
 ```bash
-# ig-downloader 起動
-docker compose up -d
+# 全サービス起動
+docker compose up -d --build
 ```
+

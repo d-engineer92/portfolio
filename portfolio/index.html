@@ -363,8 +363,9 @@
 
         <div class="projects-grid">
             <!-- Instagram Media Downloader -->
-            <div class="project-card">
-                <img src="ig-downloader-screenshot.png" alt="Instagram Media Downloader のスクリーンショット" class="card-screenshot">
+            <a href="/ig-downloader/" class="project-card">
+                <img src="ig-downloader-screenshot.png" alt="Instagram Media Downloader のスクリーンショット"
+                    class="card-screenshot">
                 <div class="card-header">
                     <div class="card-icon instagram">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -388,7 +389,35 @@
                         <span class="tech-tag">JavaScript</span>
                     </div>
                 </div>
-            </div>
+            </a>
+
+            <!-- Image Optimizer -->
+            <a href="/image-optimizer/" class="project-card">
+                <img src="image-optimizer-screenshot.png" alt="Image Optimizer のスクリーンショット" class="card-screenshot">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #06b6d4, #8b5cf6);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                        </svg>
+                    </div>
+                    <h2 class="card-title">Image Optimizer</h2>
+                </div>
+                <div class="card-body">
+                    <p class="card-description">
+                        画質を落とさずに画像のファイルサイズを削減。メタデータ除去、ロスレス最適化、
+                        WebP変換に対応。複数ファイルの一括処理も可能。
+                    </p>
+                    <div class="tech-tags">
+                        <span class="tech-tag">FastAPI</span>
+                        <span class="tech-tag">Python</span>
+                        <span class="tech-tag">Pillow</span>
+                        <span class="tech-tag">JavaScript</span>
+                    </div>
+                </div>
+            </a>
         </div>
 
         <div class="skillsheet-section">
@@ -398,19 +427,22 @@
                 <div class="skillsheet-mobile-fallback">
                     <p>PDF の表示はデスクトップブラウザに対応しています</p>
                     <a href="%E3%82%B9%E3%82%AD%E3%83%AB%E3%82%B7%E3%83%BC%E3%83%88.pdf" class="skillsheet-open-btn">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="7 10 12 15 17 10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
                         </svg>
                         PDF を開く
                     </a>
                 </div>
-                <a href="%E3%82%B9%E3%82%AD%E3%83%AB%E3%82%B7%E3%83%BC%E3%83%88.pdf" download class="skillsheet-download">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
+                <a href="%E3%82%B9%E3%82%AD%E3%83%AB%E3%82%B7%E3%83%BC%E3%83%88.pdf" download
+                    class="skillsheet-download">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                     PDF をダウンロード
                 </a>

@@ -254,6 +254,10 @@ class InstagramService:
         """Check if a response indicates the session is invalid."""
         if resp.status_code in (401, 403):
             return True
+        if resp.status_code in (301, 302):
+            location = resp.headers.get("Location", "")
+            if "login" in location or "challenge" in location:
+                return True
         if resp.status_code == 400:
             try:
                 body = resp.json()
@@ -273,6 +277,7 @@ class InstagramService:
             resp = self._session.get(
                 "https://www.instagram.com/api/v1/feed/reels_tray/",
                 timeout=_API_TIMEOUT,
+                allow_redirects=False,
             )
             if resp.status_code == 200:
                 self._last_keepalive = time.time()
@@ -286,8 +291,8 @@ class InstagramService:
                 logger.warning("Keepalive got HTTP %d", resp.status_code)
                 return False
         except Exception as exc:
-            logger.warning("Keepalive failed: %s", exc)
-            return False
+            logger.warning("Keepalive failed: %s — attempting refresh", exc)
+            return self._refresh_session()
 
     # ------------------------------------------------------------------
     # API helpers (with auto-retry on session expiry)
@@ -299,6 +304,7 @@ class InstagramService:
             f"https://www.instagram.com/api/v1/{path}",
             params=params,
             timeout=_API_TIMEOUT,
+            allow_redirects=False,
         )
         if self._is_session_invalid(resp):
             logger.warning("Session invalid on GET %s (HTTP %d), refreshing", path, resp.status_code)
@@ -307,6 +313,7 @@ class InstagramService:
                     f"https://www.instagram.com/api/v1/{path}",
                     params=params,
                     timeout=_API_TIMEOUT,
+                    allow_redirects=False,
                 )
         if resp.status_code == 429:
             raise ValueError("Instagramのレートリミットに達しました。数分後に再試行してください。")
@@ -320,6 +327,7 @@ class InstagramService:
             f"https://www.instagram.com/api/v1/{path}",
             data=data,
             timeout=_API_TIMEOUT,
+            allow_redirects=False,
         )
         if self._is_session_invalid(resp):
             logger.warning("Session invalid on POST %s (HTTP %d), refreshing", path, resp.status_code)
@@ -328,6 +336,7 @@ class InstagramService:
                     f"https://www.instagram.com/api/v1/{path}",
                     data=data,
                     timeout=_API_TIMEOUT,
+                    allow_redirects=False,
                 )
         if resp.status_code == 429:
             raise ValueError("Instagramのレートリミットに達しました。数分後に再試行してください。")

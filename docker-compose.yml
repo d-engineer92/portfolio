@@ -1,0 +1,17 @@
+services:
+  ig-downloader:
+    build: ./instagram-media-downloader
+    container_name: ig-downloader
+    env_file:
+      - ./instagram-media-downloader/backend/.env
+    volumes:
+      - ./instagram-media-downloader/backend/.sessions:/app/backend/.sessions
+    restart: unless-stopped
+    networks:
+      - default
+      - proxy
+
+networks:
+  proxy:
+    name: proxy
+    external: true

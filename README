@@ -6,23 +6,22 @@ portfolio.heartless.tokyo で公開しているプロジェクト群。
 
 ```
 portfolio/
-├── reverse-proxy/          # 共有 Caddy リバースプロキシ（80/443）
-│   ├── Caddyfile
-│   ├── docker-compose.yml
-│   └── portfolio/index.html  # ポートフォリオ LP
-└── instagram-media-downloader/  # Instagram メディアダウンローダー
-    ├── backend/             # FastAPI (port 8001)
-    └── frontend/            # HTML/CSS/JS（FastAPI から配信）
+├── docker-compose.yml          # ig-downloader コンテナ管理
+├── portfolio/index.html        # ポートフォリオ LP（Caddy から配信）
+└── instagram-media-downloader/ # Instagram メディアダウンローダー
+    ├── backend/                # FastAPI (port 8001)
+    └── frontend/               # HTML/CSS/JS（FastAPI から配信）
 ```
+
+リバースプロキシは `/root/projects/caddy-proxy/` で一元管理。
 
 ## デプロイ
 
 ```bash
-# 共有リバースプロキシ起動
-cd reverse-proxy
+# ig-downloader 起動
 docker compose up -d
 
-# Instagram Media Downloader 起動
-cd instagram-media-downloader/backend
-uvicorn main:app --port 8001
+# Caddy 設定の反映（caddy-proxy 側）
+cd /root/projects/caddy-proxy
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```

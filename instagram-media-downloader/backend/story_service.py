@@ -249,6 +249,21 @@ class InstagramService:
             "needs_manual_refresh": self._needs_manual_refresh,
         }
 
+    @staticmethod
+    def _is_session_invalid(resp) -> bool:
+        """Check if a response indicates the session is invalid."""
+        if resp.status_code in (401, 403):
+            return True
+        if resp.status_code == 400:
+            try:
+                body = resp.json()
+                msg = body.get("message", "")
+                if msg in ("checkpoint_required", "useragent mismatch"):
+                    return True
+            except Exception:
+                pass
+        return False
+
     def keepalive(self) -> bool:
         """Send a lightweight request to keep the session alive."""
         if not self._loaded:
@@ -264,8 +279,8 @@ class InstagramService:
                 self._needs_manual_refresh = False
                 logger.info("Session keepalive OK")
                 return True
-            elif resp.status_code in (401, 403):
-                logger.warning("Keepalive failed (%d) — session expired", resp.status_code)
+            elif self._is_session_invalid(resp):
+                logger.warning("Keepalive failed (%d) — session invalid, refreshing", resp.status_code)
                 return self._refresh_session()
             else:
                 logger.warning("Keepalive got HTTP %d", resp.status_code)
@@ -285,9 +300,9 @@ class InstagramService:
             params=params,
             timeout=_API_TIMEOUT,
         )
-        if resp.status_code in (401, 403):
+        if self._is_session_invalid(resp):
+            logger.warning("Session invalid on GET %s (HTTP %d), refreshing", path, resp.status_code)
             if self._refresh_session():
-                # Retry once
                 resp = self._session.get(
                     f"https://www.instagram.com/api/v1/{path}",
                     params=params,
@@ -306,9 +321,9 @@ class InstagramService:
             data=data,
             timeout=_API_TIMEOUT,
         )
-        if resp.status_code in (401, 403):
+        if self._is_session_invalid(resp):
+            logger.warning("Session invalid on POST %s (HTTP %d), refreshing", path, resp.status_code)
             if self._refresh_session():
-                # Retry once
                 resp = self._session.post(
                     f"https://www.instagram.com/api/v1/{path}",
                     data=data,
@@ -373,7 +388,18 @@ class InstagramService:
             resp = self._session.get(
                 f"https://www.instagram.com/{username}/",
                 timeout=_API_TIMEOUT,
+                allow_redirects=False,
             )
+            if resp.status_code in (301, 302):
+                location = resp.headers.get("Location", "")
+                if "challenge" in location or "login" in location:
+                    logger.warning("Profile page redirected to %s — session invalid", location)
+                    if self._refresh_session():
+                        resp = self._session.get(
+                            f"https://www.instagram.com/{username}/",
+                            timeout=_API_TIMEOUT,
+                            allow_redirects=False,
+                        )
             if resp.status_code == 200:
                 html = resp.text
                 match = re.search(r'"profilePage_(\d+)"', html)

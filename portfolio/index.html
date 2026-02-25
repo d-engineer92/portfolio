@@ -152,6 +152,12 @@
             opacity: 1;
         }
 
+        .card-screenshot {
+            width: 100%;
+            display: block;
+            border-bottom: 1px solid var(--border);
+        }
+
         .card-header {
             padding: 28px 28px 0;
             display: flex;
@@ -216,34 +222,6 @@
         .project-card:hover .tech-tag {
             background: rgba(255, 255, 255, 0.1);
             border-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .card-footer {
-            padding: 0 28px 24px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: var(--accent-1);
-            opacity: 0;
-            transform: translateX(-8px);
-            transition: all 0.35s;
-        }
-
-        .project-card:hover .card-footer {
-            opacity: 1;
-            transform: translateX(0);
-        }
-
-        .card-footer svg {
-            width: 16px;
-            height: 16px;
-            transition: transform 0.2s;
-        }
-
-        .project-card:hover .card-footer svg {
-            transform: translateX(4px);
         }
 
         /* Skill Sheet section */
@@ -319,10 +297,6 @@
                 padding: 12px 20px 20px;
             }
 
-            .card-footer {
-                padding: 0 20px 20px;
-            }
-
             .skillsheet-container {
                 padding: 16px;
             }
@@ -352,7 +326,8 @@
 
         <div class="projects-grid">
             <!-- Instagram Media Downloader -->
-            <a href="/ig-downloader/" class="project-card">
+            <div class="project-card">
+                <img src="ig-downloader-screenshot.png" alt="Instagram Media Downloader のスクリーンショット" class="card-screenshot">
                 <div class="card-header">
                     <div class="card-icon instagram">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -376,39 +351,7 @@
                         <span class="tech-tag">JavaScript</span>
                     </div>
                 </div>
-                <div class="card-footer">
-                    アプリを開く
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                        <polyline points="12 5 19 12 12 19" />
-                    </svg>
-                </div>
-            </a>
-
-            <!-- 今後追加するプロジェクトのテンプレート -->
-            <!--
-            <a href="/project-path/" class="project-card">
-                <div class="card-header">
-                    <div class="card-icon" style="background: linear-gradient(135deg, #00b4d8, #0077b6);">
-                        <svg>...</svg>
-                    </div>
-                    <h2 class="card-title">プロジェクト名</h2>
-                </div>
-                <div class="card-body">
-                    <p class="card-description">説明文</p>
-                    <div class="tech-tags">
-                        <span class="tech-tag">Tech</span>
-                    </div>
-                </div>
-                <div class="card-footer">
-                    アプリを開く
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                        <polyline points="12 5 19 12 12 19" />
-                    </svg>
-                </div>
-            </a>
-            -->
+            </div>
         </div>
 
         <div class="skillsheet-section">

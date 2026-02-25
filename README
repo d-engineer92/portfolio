@@ -9,19 +9,13 @@ portfolio/
 ├── docker-compose.yml          # ig-downloader コンテナ管理
 ├── portfolio/index.html        # ポートフォリオ LP（Caddy から配信）
 └── instagram-media-downloader/ # Instagram メディアダウンローダー
-    ├── backend/                # FastAPI (port 8001)
+    ├── backend/                # FastAPI
     └── frontend/               # HTML/CSS/JS（FastAPI から配信）
 ```
-
-リバースプロキシは `/root/projects/caddy-proxy/` で一元管理。
 
 ## デプロイ
 
 ```bash
 # ig-downloader 起動
 docker compose up -d
-
-# Caddy 設定の反映（caddy-proxy 側）
-cd /root/projects/caddy-proxy
-docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```

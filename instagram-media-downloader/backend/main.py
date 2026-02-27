@@ -53,14 +53,14 @@ async def _keepalive_loop():
 async def lifespan(app: FastAPI):
     service = get_story_service()
     if not service.session_status["logged_in"]:
-        print("⚠️  No Instagram session found. Run: python setup_session.py")
+        print("⚠️  No Instagram session found. Run: python setup_session.py --browser-cookie")
     else:
         ss = service.session_status
         print(f"✅ Instagram session loaded: {ss['username']} (sessionid: {'✅' if ss['has_sessionid'] else '❌'})")
 
     # Start background keepalive
     task = asyncio.create_task(_keepalive_loop())
-    print(f"🔄 Session keepalive started (interval: ~30min with jitter)")
+    print(f"🔄 Session keepalive started (interval: ~15min with jitter)")
     yield
     task.cancel()
 

@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import pickle
+import random
 import re
 import time
 from datetime import datetime, timezone
@@ -25,14 +26,20 @@ _IG_APP_ID = "936619743392459"
 _USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/131.0.0.0 Safari/537.36"
+    "Chrome/133.0.0.0 Safari/537.36"
 )
 
 # Timeout for API calls
 _API_TIMEOUT = 15
 
-# Keepalive interval (seconds) — 30 minutes
-KEEPALIVE_INTERVAL = 30 * 60
+# Keepalive interval (seconds) — 25~35 minutes with jitter
+KEEPALIVE_INTERVAL_BASE = 30 * 60
+KEEPALIVE_JITTER = 5 * 60  # ±5 minutes
+
+
+def get_keepalive_interval() -> int:
+    """Return a randomized keepalive interval to avoid mechanical patterns."""
+    return KEEPALIVE_INTERVAL_BASE + random.randint(-KEEPALIVE_JITTER, KEEPALIVE_JITTER)
 
 
 class InstagramService:
@@ -121,7 +128,11 @@ class InstagramService:
             return False
 
     def _try_login(self) -> bool:
-        """Attempt login directly via Instagram's login API."""
+        """Attempt login directly via Instagram's login API.
+
+        Uses the existing instaloader session instead of creating a new one
+        to avoid Instagram's "multiple sessions" restriction.
+        """
         username = os.environ.get("IG_USERNAME", "").strip()
         password = os.environ.get("IG_PASSWORD", "").strip()
 
@@ -130,9 +141,8 @@ class InstagramService:
 
         logger.info("Attempting auto-login for %s...", username)
         try:
-            import requests as req
-
-            session = req.Session()
+            # Reuse the existing session to avoid creating multiple sessions
+            session = self._session
             session.headers.update({
                 "User-Agent": _USER_AGENT,
                 "X-IG-App-ID": _IG_APP_ID,
@@ -140,8 +150,7 @@ class InstagramService:
                 "Referer": "https://www.instagram.com/accounts/login/",
                 "Origin": "https://www.instagram.com",
             })
-            if self._proxy_url:
-                session.proxies = {"http": self._proxy_url, "https": self._proxy_url}
+            self._apply_proxy()
 
             # Get CSRF token
             session.get("https://www.instagram.com/accounts/login/", timeout=_API_TIMEOUT)
@@ -177,13 +186,8 @@ class InstagramService:
                     logger.error("Auto-login failed: %s", msg)
                 return False
 
-            # Transfer cookies to instaloader session
-            for cookie in session.cookies:
-                self._session.cookies.set(cookie.name, cookie.value)
-            self._session.headers["X-IG-App-ID"] = _IG_APP_ID
             self._session_username = username
             self._loaded = True
-            self._apply_proxy()
             self._needs_manual_refresh = False
 
             # Save session
@@ -198,11 +202,14 @@ class InstagramService:
             logger.error("Auto-login failed: %s", exc)
             return False
 
-    # Minimum interval between refresh attempts (seconds)
-    _REFRESH_COOLDOWN = 60
+    # Minimum interval between refresh attempts (seconds) — 10 minutes
+    _REFRESH_COOLDOWN = 10 * 60
 
     def _refresh_session(self) -> bool:
-        """Try to refresh the session when it expires (401/403)."""
+        """Try to refresh the session when it expires (401/403).
+
+        Strategy: reload from file first (no login needed), then login as last resort.
+        """
         now = time.time()
         elapsed = now - self._last_refresh_attempt
         if elapsed < self._REFRESH_COOLDOWN:
@@ -216,11 +223,7 @@ class InstagramService:
         logger.info("Session expired — attempting refresh...")
         self._loaded = False
 
-        # First try re-login
-        if self._try_login():
-            return True
-
-        # If login failed, try reloading from file
+        # First try reloading from file (avoids creating a new login)
         session_files = sorted(
             SESSION_DIR.glob("session-*"),
             key=lambda p: p.stat().st_mtime,
@@ -236,10 +239,14 @@ class InstagramService:
                 self._session.headers["X-IG-App-ID"] = _IG_APP_ID
                 self._session.headers["User-Agent"] = _USER_AGENT
                 self._apply_proxy()
-                logger.info("Session reloaded from file")
+                logger.info("Session reloaded from file (no login needed)")
                 return True
             except Exception:
                 pass
+
+        # Last resort: re-login
+        if self._try_login():
+            return True
 
         self._needs_manual_refresh = True
         return False
@@ -283,7 +290,11 @@ class InstagramService:
         return False
 
     def keepalive(self) -> bool:
-        """Send a lightweight request to keep the session alive."""
+        """Send a lightweight request to keep the session alive.
+
+        Network errors are logged but do NOT trigger a re-login to avoid
+        unnecessary session creation.
+        """
         if not self._loaded:
             return False
 
@@ -302,11 +313,13 @@ class InstagramService:
                 logger.warning("Keepalive failed (%d) — session invalid, refreshing", resp.status_code)
                 return self._refresh_session()
             else:
-                logger.warning("Keepalive got HTTP %d", resp.status_code)
+                # Non-fatal error (e.g., 429 rate limit) — don't refresh
+                logger.warning("Keepalive got HTTP %d (not refreshing)", resp.status_code)
                 return False
         except Exception as exc:
-            logger.warning("Keepalive failed: %s — attempting refresh", exc)
-            return self._refresh_session()
+            # Network error — don't trigger re-login, just log
+            logger.warning("Keepalive network error: %s (not refreshing)", exc)
+            return False
 
     # ------------------------------------------------------------------
     # API helpers (with auto-retry on session expiry)

@@ -23,7 +23,7 @@ if _env_file.exists():
             key, _, value = line.partition("=")
             os.environ.setdefault(key.strip(), value.strip())
 
-from story_service import get_story_service, KEEPALIVE_INTERVAL
+from story_service import get_story_service, get_keepalive_interval
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
@@ -35,7 +35,8 @@ FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 async def _keepalive_loop():
     """Periodically ping Instagram to keep the session alive."""
     while True:
-        await asyncio.sleep(KEEPALIVE_INTERVAL)
+        interval = get_keepalive_interval()
+        await asyncio.sleep(interval)
         try:
             service = get_story_service()
             service.keepalive()
@@ -59,7 +60,7 @@ async def lifespan(app: FastAPI):
 
     # Start background keepalive
     task = asyncio.create_task(_keepalive_loop())
-    print(f"🔄 Session keepalive started (interval: {KEEPALIVE_INTERVAL // 60}min)")
+    print(f"🔄 Session keepalive started (interval: ~30min with jitter)")
     yield
     task.cancel()
 
